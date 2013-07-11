@@ -12,7 +12,7 @@
 (defn- text-node [s]
   {:type :text
    :text s})
-(defn- var-node [s]
+(defn- var-node [s] 
   {:type :var
    :text s})
 
@@ -293,6 +293,11 @@
   `(binding [*template-path* ~root]
      ~@body))
 
+(defmacro with-string-template [& body]
+  `(binding [*template-path* nil]
+     ~@body))
+
+
 (defn- read-template [string-or-file]
   (let [[s fileref] (if (string? string-or-file)
                       [string-or-file "UNKNOWN"]
@@ -300,15 +305,13 @@
     [s fileref]))
 
 (defn- load-renderer [template]
-  (let [[s filename] (->
-                      template
-                      fetch-template
-                      read-template)
+  (let [[s filename] (cond-> template
+                             *template-path* fetch-template
+                             true read-template)
         emitter  (str->emitter s filename)]
     (save-block! ::root emitter)))
 
-
-(defn get-renderer [template]
+(defn create-renderer [template]
   (binding [*blocks* (atom {})]
     (load-renderer template)
     (let [emitter (get-block ::root)]
@@ -378,7 +381,7 @@
   (let [args (node :args)
         filename (second (re-matches #"\"(.*)\"" args))]
     (assert filename (prn-str "?? " args filename))
-    (get-renderer filename)))
+    (create-renderer filename)))
 
 
 (def-single-tag "when" [node]
