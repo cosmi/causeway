@@ -1,5 +1,9 @@
 (ns example.core
-  (:gen-class))
+  (:gen-class)
+  (:use [clojure.tools.nrepl.server :only (start-server stop-server)]))
+
+
+(defonce server (start-server :port 5777))
 
 (defn -main
   "I don't do a whole lot ... yet."
