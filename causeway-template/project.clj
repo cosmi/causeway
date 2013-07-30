@@ -1,8 +1,7 @@
-(defproject causeway-template/lein-template "0.1.0-SNAPSHOT"
+(defproject causeway-template/lein-template "0.1.0"
   :description "FIXME: write description"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.5.1"]
-                 [causeway "0.1.0-SNAPSHOT"]]
+  :dependencies [[org.clojure/clojure "1.5.1"]]
   :eval-in-leiningen true)

@@ -3,11 +3,11 @@
 
 (def render (renderer "causeway-template"))
 
-(def chars "abcdefghijklmnpqrstuvwxyz0123456789")
+(def pass-chars "abcdefghijklmnpqrstuvwxyz0123456789")
 
 (defn gen-pass [len]
   (apply str (for [r (range len)]
-               (rand-nth chars)
+               (rand-nth pass-chars)
                )))
 
 (defn causeway-template

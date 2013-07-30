@@ -1,8 +1,7 @@
 (ns {{name}}.admin
     (:use [causeway.properties :only [defprop prop-panel]]
         [causeway.bootconfig :only [devmode? bootconfig]]
-        [compojure.route :only [defroutes]]
-        [compojure.core :only [context]]
+        [compojure.core :only [context defroutes routes]]
         [ring.middleware.http-basic-auth :only [wrap-require-auth]]))
 
 
