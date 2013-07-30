@@ -1,4 +1,6 @@
-(ns causeway.util)
+(ns causeway.util
+  (:use [compojure.core]))
+
 
 
 

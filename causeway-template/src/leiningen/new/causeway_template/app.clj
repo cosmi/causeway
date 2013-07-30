@@ -1,7 +1,10 @@
 (ns {{name}}.app
+    (:use [compojure.core]))
+
+(defroutes public-routes
+  (GET "/" []
+    "Hello world!"))
 
 
-    )
-
-(def public-routes [])
-(def logged-routes [])
+(defroutes logged-routes
+  )

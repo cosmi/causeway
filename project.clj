@@ -8,6 +8,8 @@
                  [compojure "1.1.5"]
                  [hiccup "1.0.3"]
                  [clj-time "0.5.1"]
+                 [ring-server "0.2.8"]
                  [cosmi/clj-rhino "0.2.0a"]
+                 [com.novemberain/monger "1.6.0"]
                  [ro.isdc.wro4j/wro4j-extensions "1.7.0"]
                  ])

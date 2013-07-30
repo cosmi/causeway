@@ -1,10 +1,10 @@
 (ns {{name}}.handler
   (:use [causeway.properties :only [defprop prop-panel]]
         [causeway.bootconfig :only [devmode? bootconfig]]
-        [compojure.route :only [defroutes]]
-        [compojure.core :only [context]]
+        [compojure.route :only [not-found resources]]
+        [compojure.core :only [context defroutes routes]]
         [{{name}}.admin :only [admin-routes]]
-        [causeway.util :only [when-routes]]
+        [causeway.util :only [routes-when]]
         [causeway.validation :only [wrap-validation]]
         [{{name}}.auth :only [is-logged-in?]]
         [{{name}}.app :only [public-routes logged-routes]])
@@ -17,18 +17,17 @@
 (def api-routes [])
 
 (defroutes resource-routes
-  (route/resources "/"))
+  (resources "/"))
 
 
 (def main-handler
   (-> 
    (routes
     public-routes
-    (when-routes
-     (is-logged-in?)
-     logged-routes)
+    (routes-when (is-logged-in?)
+      logged-routes)
     resource-routes
-    (route/not-found "Not Found")
+    (not-found "Not Found")
     )
    wrap-validation))
 
