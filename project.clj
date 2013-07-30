@@ -6,4 +6,8 @@
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [lib-noir "0.5.2"]
                  [compojure "1.1.5"]
-                 [hiccup "1.0.3"]])
+                 [hiccup "1.0.3"]
+                 [clj-time "0.5.1"]
+                 [cosmi/clj-rhino "0.2.0a"]
+                 [ro.isdc.wro4j/wro4j-extensions "1.7.0"]
+                 ])
