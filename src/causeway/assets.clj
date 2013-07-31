@@ -6,7 +6,9 @@
         [ring.util.response :only [url-response]])
   (:import java.io.File)
   (:import ro.isdc.wro.extensions.processor.js.RhinoCoffeeScriptProcessor
-           ro.isdc.wro.extensions.processor.css.RhinoLessCssProcessor)
+           ro.isdc.wro.extensions.processor.js.UglifyJsProcessor
+           ro.isdc.wro.extensions.processor.css.RhinoLessCssProcessor
+           ro.isdc.wro.extensions.processor.css.YUICssCompressorProcessor)
   (:require [clojure.java.io :as io]
             [digest]))
 
@@ -60,7 +62,7 @@
     .delete
     .mkdirs))
 
-(def cache-root (create-temp-dir "causeway"))
+(defonce cache-root (create-temp-dir "causeway"))
 
 
 (defn resource-processor-cache-url [url processor-id new-ext]
@@ -118,4 +120,16 @@
 
 (defn less-css-processor []
   (let [processor (RhinoLessCssProcessor.)]
+    (create-processor processor)))
+
+
+
+(defn yui-css-compressor []
+  (let [processor (YUICssCompressorProcessor.)]
+    (create-processor processor)))
+
+
+
+(defn uglify-js-compressor []
+  (let [processor (UglifyJsProcessor.)]
     (create-processor processor)))
