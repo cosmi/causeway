@@ -12,23 +12,25 @@
 
 
 
-(def www-routes [#'public-routes #'logged-routes #'admin-routes])
-
-(def api-routes [])
-
 (defroutes resource-routes
-  (resources "/"))
+  (->
+   (resource-handler
+    (combine-providers
+     (variant-provider "variants" "public")
+     (resource-provider "public")
+     ))))
 
 
 (def main-handler
   (-> 
    (routes
-    public-routes
-    (routes-when (is-logged-in?)
-      logged-routes)
-    resource-routes
-    (not-found "Not Found")
-    )
+     public-routes
+     (routes-when (is-logged-in?)
+       logged-routes)
+     admin-routes
+     resource-routes
+     (not-found "Not Found"))
+   (wrap-variant-selector (constantly "en"))
    wrap-validation))
 
 (defn init []
@@ -37,6 +39,3 @@
     (require '{{name}}.devtools)))
 
 (defn destroy [])
-
-
-

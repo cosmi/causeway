@@ -5,96 +5,11 @@
         [ring.middleware.head :only [wrap-head]]
         [ring.util.response :only [url-response]])
   (:import java.io.File)
-  (:require [clojure.java.io :as io]))
+  (:import ro.isdc.wro.extensions.processor.js.RhinoCoffeeScriptProcessor
+           ro.isdc.wro.extensions.processor.css.RhinoLessCssProcessor)
+  (:require [clojure.java.io :as io]
+            [digest]))
 
-
-
-
-
-;; (def ^:private substituted-resources (atom {}))
-;; (def ^:private prepared-resources (atom {}))
-
-;; (defn def-resource-substitute [^String orig-type ^String sub-type]
-;;   (swap! substituted-resources
-;;          #(assoc % orig-type (-> % (get orig-type) (or []) (conj sub-type)))))
-
-
-;; (defn def-resource-preparator [^String orig-type fun]
-;;   (when (get @prepared-resources orig-type) (println "WARN: Double resource preparators"))
-;;   (swap! prepared-resources
-;;          assoc orig-type fun))
-
-
-
-
-
-;; (defn split-path-extension [^String path]
-;;   (or (next (re-matches #"(.*\.)([a-zA-Z0-9]+)" path))
-;;       (list path "")))
-
-
-;; (defn- variant-selector [variant-name]
-;;   (if variant-name
-;;     #(str "variants/" variant-name "/" %)
-;;     identity))
-
-;; (defn- fetch-resource- [path variant]
-;;   (io/resource ( (variant-selector variant) path)))
-
-
-;; (defn create-temp-dir [nom]
-;;   (doto (java.io.File/createTempFile nom "")
-;;       .delete
-;;       .mkdirs))
-
-;; (def cache-root (create-temp-dir "causeway"))
-;; (def tmp-dir (create-temp-dir "causeway-tmp"))
-
-
-;; (defn- url-as-file [u]
-;;   (io/as-file
-;;    ;; (str/replace
-;;     (.replace (.getFile u) \/ File/separatorChar)
-    
-;;     ;; #"%.."
-;;     ;; (fn [escape]
-;;     ;;   (-> escape
-;;     ;;       (.substring 1 3)
-;;     ;;       (Integer/parseInt 16)
-;;     ;;       (char)
-;;     ;;       (str)))
-
-;;     ;; )
-;;    ))
-
-;; (defn prepare-resource [url fun]
-;;   (let [file ;(if (-> url .getProtocol (= "file"))
-;;                ;(io/input-stream (url-as-file url)
-;;                (io/input-stream url)]
-    
-;;         ))
-
-
-
-  
-;; (defn fetch-resource [path]
-;;   (let [[nom ext] (split-path-extension path)
-;;         subs (cons ext (@substituted-resources ext))
-;;         paths (map #(str nom %) subs)]
-;;     (some identity
-;;           (for [variant *variant-stack*
-;;                 path paths]
-;;             (fetch-resource- path variant)))))
-
-
-
-;; (defn get-resource [path]
-;;   (when-let [url (fetch-resource path)]
-;;     (let [[nom ext] (split-path-extension (.getPath url))
-;;           fun (get @prepared-resources ext)]
-;;       (if fun
-;;         (prepare-resource path fun)
-;;         path))))
 
 
 
@@ -102,28 +17,105 @@
 (def ^:dynamic *variant-stack* ())
 
 
-(defn with-preferred-variant [variant-name & body]
-  (binding [*variant-stack* (cons variant-name *variant-stack*)]
+(defmacro with-preferred-variant [variant-name & body]
+  `(binding [*variant-stack* (cons ~variant-name *variant-stack*)]
     ~@body))
 
+(defn wrap-variant-selector [handler variant-fn]
+  (fn [req]
+    (with-preferred-variant (variant-fn)
+      (handler req))))
 
-(defn resource-fetcher [root]
+
+(defn resource-provider [root]
   (fn [path]
     (io/resource (str root File/separatorChar path))))
 
 
-(defn variant-resource-fetcher [variants-root base-resource-fetcher]
+(defn variant-resource-provider [variants-root base-resource-provider-factory]
   (fn [path]
     (->> *variant-stack*
-        (some #((base-resource-fetcher (str variants-root File/separatorChar (name %)))
+        (some #((base-resource-provider-factory (str variants-root File/separatorChar (name %)))
                path)))))
 
+(defn variant-provider [variants-root public-root]
+  (variant-resource-provider
+   variants-root
+   #(resource-provider (str % File/separatorChar public-root))))
 
-(defn resource-handler [fetcher]
+
+(defn combine-providers [& providers]
+  (fn [path]
+    (some #(% path) providers)))
+
+(defn resource-handler [provider]
   (-> (GET "/*" {{file-path :*} :route-params}
-        (when-let [url (-> file-path fetcher)]
+        (when-let [url (-> file-path provider)]
           (url-response url)))
       (wrap-file-info)
       (wrap-head)))
 
+(defn create-temp-dir [nom]
+  (doto (java.io.File/createTempFile nom "")
+    .delete
+    .mkdirs))
 
+(def cache-root (create-temp-dir "causeway"))
+
+
+(defn resource-processor-cache-url [url processor-id new-ext]
+  (let [file (io/as-file url)
+        ts (.lastModified file)
+        parent-path (->
+                     file
+                     .getParentFile
+                     .getCanonicalPath)
+        cached-filename (str processor-id \- ts \- (digest/md5 parent-path) \- (.getName file) \. new-ext)
+        cached-file (File. cache-root cached-filename)]
+      (io/as-url cached-file)))
+
+
+
+
+
+
+(defn wrap-processor [provider processor from-ext to-ext]
+  (let [ext (str "." to-ext)
+        forbidden-ext (when (not= from-ext to-ext) (str "." from-ext))
+        processor-id (hash processor)]
+    (fn [path]
+      (when-not (and forbidden-ext (.endsWith path forbidden-ext))
+        (or
+         (when (.endsWith path ext)
+           (let [source-path (str (subs path 0 (-> (count path) (- (count to-ext))))
+                                  from-ext)
+                 source-url (provider source-path)]
+             (when source-url
+               (let [cache-url (resource-processor-cache-url source-url processor-id to-ext)]
+                 (try
+                   (when-not (-> cache-url io/as-file .exists)
+                     (processor source-url cache-url))
+                   (catch Throwable t
+                     (-> (io/as-file cache-url) .delete)
+                     (throw t))
+                   )
+                 cache-url
+                 ))
+             ))
+         (provider path))))))
+
+
+(defn create-processor [processor]
+  (fn [from-url to-url]
+    (doto processor
+      (.process (io/make-reader from-url nil)
+                (io/make-writer to-url nil)))))
+
+(defn coffee-script-processor []
+  (let [processor (RhinoCoffeeScriptProcessor.)]
+    (create-processor processor)))
+
+
+(defn less-css-processor []
+  (let [processor (RhinoLessCssProcessor.)]
+    (create-processor processor)))
