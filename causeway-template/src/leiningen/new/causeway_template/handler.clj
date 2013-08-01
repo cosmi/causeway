@@ -6,11 +6,17 @@
         [causeway.utils :only [routes-when]]
         [causeway.validation :only [wrap-validation]]
         [causeway.assets]
+        [causeway.templates :only [set-default-url-templates-provider!]]
         [{{name}}.auth :only [is-logged-in?]]
         [{{name}}.app :only [public-routes logged-routes]]
         [{{name}}.admin :only [admin-routes]])
-  (:require [compojure.handler :as handler]))
+  (:require [compojure.handler :as handler]
+            [{{name}}.localized]))
 
+(set-default-url-templates-provider!
+ (combine-providers
+  (variant-provider "variants" "templates")
+  (resource-provider "templates")))
 
 (defroutes resource-routes
   (-> (combine-providers
@@ -32,14 +38,14 @@
 (def main-handler
   (-> 
    (routes
-     public-routes
+     #'public-routes
      (routes-when (is-logged-in?)
-       logged-routes)
-     admin-routes
+       #'logged-routes)
+     #'admin-routes
      resource-routes
      (not-found "Not Found"))
    ;; TODO: Add something like that:
-   ;; (wrap-variant-selector (constantly "en"))
+   ;; (wrap-variant-selector (constantly :en))
    wrap-validation))
 
 (defn init []

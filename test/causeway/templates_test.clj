@@ -30,7 +30,7 @@
 
 
 (deftest test-tags
-  (let [renderer (create-template-from-string "test {% when v then x%} endtest")]
+
     (is (= (renderer {:v 1 :x 2}) "test 2 endtest")))
   (let [renderer
         (create-template-from-string "test {% when v then x|esc%} endtest")]
