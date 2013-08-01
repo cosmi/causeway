@@ -3,7 +3,7 @@
         [causeway.bootconfig :only [devmode? bootconfig]]
         [compojure.route :only [not-found resources]]
         [compojure.core :only [context defroutes routes]]
-        [causeway.util :only [routes-when]]
+        [causeway.utils :only [routes-when]]
         [causeway.validation :only [wrap-validation]]
         [causeway.assets]
         [{{name}}.auth :only [is-logged-in?]]
@@ -25,7 +25,8 @@
        (not (devmode?))
        (->
         (wrap-processor (yui-css-compressor) "css" "css")
-        (wrap-processor (uglify-js-compressor) "js" "js")))
+        (wrap-processor (uglify-js-compressor) "js" "js")
+        wrap-resource-lookup-caching))
       resource-handler))
 
 (def main-handler

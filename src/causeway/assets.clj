@@ -1,5 +1,6 @@
 (ns causeway.assets
   (:use [causeway.bootconfig]
+        [causeway.variants]
         [compojure.core]
         [ring.middleware.file-info :only [wrap-file-info]]
         [ring.middleware.head :only [wrap-head]]
@@ -10,18 +11,11 @@
            ro.isdc.wro.extensions.processor.css.RhinoLessCssProcessor
            ro.isdc.wro.extensions.processor.css.YUICssCompressorProcessor)
   (:require [clojure.java.io :as io]
-            [digest]))
+            [digest]
+            [clojure.core.cache :as cache]))
 
 
 
-
-
-(def ^:dynamic *variant-stack* ())
-
-
-(defmacro with-preferred-variant [variant-name & body]
-  `(binding [*variant-stack* (cons ~variant-name *variant-stack*)]
-    ~@body))
 
 (defn wrap-variant-selector [handler variant-fn]
   (fn [req]
@@ -66,6 +60,8 @@
 
 
 (defn resource-processor-cache-url [url processor-id new-ext]
+  
+    (prn :PROCESSING url)
   (let [file (io/as-file url)
         ts (.lastModified file)
         parent-path (->
@@ -75,10 +71,6 @@
         cached-filename (str processor-id \- ts \- (digest/md5 parent-path) \- (.getName file) \. new-ext)
         cached-file (File. cache-root cached-filename)]
       (io/as-url cached-file)))
-
-
-
-
 
 
 (defn wrap-processor [provider processor from-ext to-ext]
@@ -117,19 +109,23 @@
   (let [processor (RhinoCoffeeScriptProcessor.)]
     (create-processor processor)))
 
-
 (defn less-css-processor []
   (let [processor (RhinoLessCssProcessor.)]
     (create-processor processor)))
-
-
 
 (defn yui-css-compressor []
   (let [processor (YUICssCompressorProcessor.)]
     (create-processor processor)))
 
-
-
 (defn uglify-js-compressor []
   (let [processor (UglifyJsProcessor.)]
     (create-processor processor)))
+
+(defn wrap-resource-lookup-caching [fun]
+  (let [cache (cache/soft-cache-factory {})]
+    (fn [path]
+      (let [params [*variant-stack* path]]
+        (if (cache/has? cache params)
+          (cache/hit cache params)
+          (cache/miss cache params (fun path)))
+        (cache/lookup cache params)))))
