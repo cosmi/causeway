@@ -13,4 +13,5 @@
                  [cosmi/clj-rhino "0.2.0a"]
                  [com.novemberain/monger "1.6.0"]
                  [ro.isdc.wro4j/wro4j-extensions "1.7.0"]
+                 [org.clojure/core.cache "0.6.3"]
                  ])

@@ -1,4 +1,4 @@
-(ns causeway.template
+(ns causeway.templates.engine
   (:require [clojure.string :as strings]))
 
 (def ^:private SEP (char 0))
@@ -140,30 +140,29 @@
 
 
 
+
 (def-filter "esc" escape-html)
 (def-filter "str" str)
 (def-filter "safe" identity)
 (def-filter "count" count)
 
-
+(def default-filters ["str" "esc"])
 
 
 
 (defn- var-emitter [node]
   (let [args (strings/split (node :text) #"\|")
         args (map strings/trim args)
-        [nom & funs] args
+        [nom & filters] args
+        filters (or filters default-filters)
         path (-> nom sym->path)
-        funs (for [fun funs]
-               (let [[_ nom args] (re-matches #"(\S+)\s*(\S*)" fun)
-                     args (read-string (str "(" args ")"))
-                     fun (@*filters* nom)]
-                 (assert fun)
-                 (if (empty? args) fun
-                     #(apply fun % args))))
-        funs (if (empty? funs)
-               [str escape-html]
-               funs)
+        funs (for [fltr filters]
+                  (let [[_ nom args] (re-matches #"(\S+)\s*(\S*)" fltr)
+                        args (read-string (str "(" args ")"))
+                        fun (@*filters* nom)]
+                    (assert fun (str "No such filter: \"" nom \"))
+                    (if (empty? args) fun
+                        #(apply fun % args))))
         fltr (apply comp (reverse funs))
         ]
     (assert (not (some nil? funs)))
@@ -205,24 +204,13 @@
 (def ^{:private true :dynamic true} *tags* (atom {}))
 
 (def ^{:private true :dynamic true} *blocks* nil)
-(defn- get-block [name]
+(defn get-block [name]
   (-> *blocks* deref (get name)))
 
-(defn- save-block! [name fun]
+(defn save-block! [name fun]
   (swap! *blocks* #(cond-> % (not (contains? % name)) (assoc name fun))))
 
 
-
-(defn- str->emitter [s & [filename]]
-  (let [inp (->> s split-str
-      ;; (splice-nodes #(if (= (-> % :type :text))
-      ;;                  (map text-node (split-lines (% :text)))
-      ;;                  [%]))
-                (map mark-tagname)
-                enumerate-els
-                (map #(assoc % :filename filename)))]
-      (-> inp (compile-seq @*tags*)
-          seq-emitter)))
 
 (defn- is-var-name? [arg]
   (re-matches #"([-\w\.]+)" arg)
@@ -276,48 +264,46 @@
 
 
 
+;; Template builter functions:
 
 
+(defn- str->emitter [s & [filename]]
+  (let [inp (->> s split-str
+                 ;; This can be added to separate text node lines:
+                 ;; (splice-nodes #(if (= (-> % :type :text))
+                 ;;                  (map text-node (split-lines (% :text)))
+                 ;;                  [%]))
+                (map mark-tagname)
+                enumerate-els
+                (map #(assoc % :filename filename)))]
+      (-> inp (compile-seq @*tags*)
+          seq-emitter)))
 
+(def ^:dynamic *templates-provider* nil)
 
-(def ^:dynamic *template-path* "")
+(defn get-source [path]
+  (*templates-provider* path))
 
-
-(defn fetch-template [template]
-  (-> 
-   (Thread/currentThread)
-   (.getContextClassLoader)
-   (.getResource (str *template-path* template))))
-
-(defmacro with-template-root [root & body]
-  `(binding [*template-path* ~root]
-     ~@body))
-
-(defmacro with-string-template [& body]
-  `(binding [*template-path* nil]
-     ~@body))
-
-
-(defn- read-template [string-or-file]
-  (let [[s fileref] (if (string? string-or-file)
-                      [string-or-file "UNKNOWN"]
-                      [(slurp string-or-file) string-or-file])]
-    [s fileref]))
-
-(defn- load-renderer [template]
-  (let [[s filename] (cond-> template
-                             *template-path* fetch-template
-                             true read-template)
-        emitter  (str->emitter s filename)]
+(defn load-template-from-string [template-string]
+  (let [emitter (str->emitter template-string "UNKNOWN")]
     (save-block! ::root emitter)))
 
-(defn create-renderer [template]
-  (binding [*blocks* (atom {})]
-    (load-renderer template)
-    (let [emitter (get-block ::root)]
-      #(->> % emitter flatten (apply str)))))
+(defn load-template-from-path [template-name]
+  (-> template-name
+      *templates-provider*
+      load-template-from-string))
+
+(defmacro encapsulate-template [& body]
+  `(binding [*blocks* (atom {})]
+     ~@body
+     (get-block ::root)))
+
+(defn finalize-emitter [emitter]
+  (fn [input]
+    (->> input emitter flatten (apply str))))
 
 
+;;;; TAGS:
 
 
 (def-block-tag "if" "endif" [if-node inner endif-node]
@@ -374,14 +360,15 @@
   (let [args (node :args)
         filename (second (re-matches #"\"(.*)\"" args))]
     (assert filename)
-    (load-renderer filename)))
+    (load-template-from-path filename)))
 
 
 (def-single-tag "include" [node]
   (let [args (node :args)
         filename (second (re-matches #"\"(.*)\"" args))]
     (assert filename (prn-str "?? " args filename))
-    (create-renderer filename)))
+    (encapsulate-template 
+     (load-template-from-path filename))))
 
 
 (def-single-tag "when" [node]
