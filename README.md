@@ -51,6 +51,6 @@ coming soon:
 
 ## License
 
-Copyright © 2013 FIXME
+Copyright © 2013 Marcin Skotniczny
 
 Distributed under the Eclipse Public License, the same as Clojure.
