@@ -127,7 +127,7 @@ if (!String.prototype.trim) {
 }
 var less, tree, charset;
 
-if (true || typeof environment === "object" && ({}).toString.call(environment) === "[object Environment]") {
+if (true ||typeof environment === "object" && ({}).toString.call(environment) === "[object Environment]") {
     // Rhino
     // Details on how to detect Rhino: https://github.com/ringo/ringojs/issues/88
     if (typeof(window) === 'undefined') { less = {} }
@@ -652,7 +652,7 @@ less.Parser = function Parser(env) {
             primary: function () {
                 var node, root = [];
 
-                while ((node = $(this.extendRule) || $(this.mixin.definition) || $(this.rule)    ||  $(this.ruleset) ||
+                while ((node = $(this.mixin.definition) || $(this.rule)    ||  $(this.ruleset) ||
                                $(this.mixin.call)       || $(this.comment) ||  $(this.directive))
                                || $(/^[\s\n]+/) || $(/^;+/)) {
                     node && root.push(node);
@@ -851,7 +851,7 @@ less.Parser = function Parser(env) {
                     //Is the first char of the dimension 0-9, '.', '+' or '-'
                     if ((c > 57 || c < 43) || c === 47 || c == 44) return;
 
-                    if (value = $(/^([+-]?\d*\.?\d+)(%|[a-z]+)?/)) {
+                    if (value = $(/^([+-]?\d*\.?\d+)(px|%|em|pc|ex|in|deg|s|ms|pt|cm|mm|rad|grad|turn|dpi|dpcm|dppx|rem|vw|vh|vmin|vm|ch)?/)) {
                         return new(tree.Dimension)(value[1], value[2]);
                     }
                 },
@@ -930,38 +930,10 @@ less.Parser = function Parser(env) {
                 if ((a = $(this.entity)) && $('/') && (b = $(this.entity))) {
                     return new(tree.Shorthand)(a, b);
                 }
-                
+
                 restore();
             },
-            
-            //
-            // extend syntax - used to extend selectors
-            //
-            extend: function(isRule) {
-                var elements = [], e, args, index = i;
 
-                if (!$(isRule ? /^&:extend\(/ : /^:extend\(/)) { return; }
-
-                while (e = $(/^[#.](?:[\w-]|\\(?:[a-fA-F0-9]{1,6} ?|[^a-fA-F0-9]))+/)) {
-                    elements.push(new(tree.Element)(null, e, i));
-                }
-                
-                expect(/^\)/);
-                
-                if (isRule) {
-                    expect(/^;/);
-                }
-
-                return new(tree.Extend)(elements, index);
-            },
-
-            //
-            // extendRule - used in a rule to extend all the parent selectors
-            //
-            extendRule: function() {
-                return this.extend(true);
-            },
-            
             //
             // Mixins
             //
@@ -1191,7 +1163,8 @@ less.Parser = function Parser(env) {
 
                 if (! e) {
                     if ($('(')) {
-                        if ((v = (//$(this.entities.variableCurly) || 
+                        if ((v = ($(this.entities.variableCurly) || 
+                                $(this.entities.variable) || 
                                 $(this.selector))) && 
                                 $(')')) {
                             e = new(tree.Paren)(v);
@@ -1234,20 +1207,22 @@ less.Parser = function Parser(env) {
             // Selectors are made out of one or more Elements, see above.
             //
             selector: function () {
-                var sel, e, elements = [], c, match, extend;
+                var sel, e, elements = [], c, match;
 
-                while ((extend = $(this.extend)) || (e = $(this.element))) {
-                    if (!e) {
-                        break;
-                    }
+                // depreciated, will be removed soon
+                if ($('(')) {
+                    sel = $(this.entity);
+                    if (!$(')')) { return null; }
+                    return new(tree.Selector)([new(tree.Element)('', sel, i)]);
+                }
+
+                while (e = $(this.element)) {
                     c = input.charAt(i);
                     elements.push(e)
-                    e = null;
                     if (c === '{' || c === '}' || c === ';' || c === ',' || c === ')') { break }
                 }
 
-                if (elements.length > 0) { return new(tree.Selector)(elements, extend) }
-                if (extend) { error("Extend must be used to extend a selector"); }
+                if (elements.length > 0) { return new(tree.Selector)(elements) }
             },
             attribute: function () {
                 var attr = '', key, val, op;
@@ -1347,13 +1322,12 @@ less.Parser = function Parser(env) {
                 
                 save();
                 
-                var dir = $(/^@import(?:-(once|multiple))?\s+/);
+                var dir = $(/^@import(?:-(once))?\s+/);
 
                 if (dir && (path = $(this.entities.quoted) || $(this.entities.url))) {
                     features = $(this.mediaFeatures);
                     if ($(';')) {
-                        var importOnce = dir[1] !== 'multiple';
-                        return new(tree.Import)(path, imports, features, importOnce, index, env.rootpath);
+                        return new(tree.Import)(path, imports, features, (dir[1] === 'once'), index, env.rootpath);
                     }
                 }
                 
@@ -1941,13 +1915,13 @@ tree.functions = {
         return this._isa(n, tree.URL);
     },
     ispixel: function (n) {
-        return (n instanceof tree.Dimension) && n.unit.is('px') ? tree.True : tree.False;
+        return (n instanceof tree.Dimension) && n.unit === 'px' ? tree.True : tree.False;
     },
     ispercentage: function (n) {
-        return (n instanceof tree.Dimension) && n.unit.is('%') ? tree.True : tree.False;
+        return (n instanceof tree.Dimension) && n.unit === '%' ? tree.True : tree.False;
     },
     isem: function (n) {
-        return (n instanceof tree.Dimension) && n.unit.is('em') ? tree.True : tree.False;
+        return (n instanceof tree.Dimension) && n.unit === 'em' ? tree.True : tree.False;
     },
     _isa: function (n, Type) {
         return (n instanceof Type) ? tree.True : tree.False;
@@ -2025,7 +1999,7 @@ function hsla(color) {
 }
 
 function scaled(n, size) {
-    if (n instanceof tree.Dimension && n.unit.is('%')) {
+    if (n instanceof tree.Dimension && n.unit == '%') {
         return parseFloat(n.value * size / 100);
     } else {
         return number(n);
@@ -2034,7 +2008,7 @@ function scaled(n, size) {
 
 function number(n) {
     if (n instanceof tree.Dimension) {
-        return parseFloat(n.unit.is('%') ? n.value / 100 : n.value);
+        return parseFloat(n.unit == '%' ? n.value / 100 : n.value);
     } else if (typeof(n) === 'number') {
         return n;
     } else {
@@ -2492,8 +2466,7 @@ tree.Condition.prototype.eval = function (env) {
 //
 tree.Dimension = function (value, unit) {
     this.value = parseFloat(value);
-    this.unit = (unit && unit instanceof tree.Unit) ? unit :
-      new(tree.Unit)(unit ? [unit] : undefined);
+    this.unit = unit || null;
 };
 
 tree.Dimension.prototype = {
@@ -2502,56 +2475,30 @@ tree.Dimension.prototype = {
         return new(tree.Color)([this.value, this.value, this.value]);
     },
     toCSS: function () {
-        return this.unit.isEmpty() ? this.value :
-          (String(this.value) + this.unit.toCSS());
+        var css = this.value + this.unit;
+        return css;
     },
 
     // In an operation between two Dimensions,
     // we default to the first Dimension's unit,
-    // so `1px + 2` will yield `3px`.
+    // so `1px + 2em` will yield `3px`.
+    // In the future, we could implement some unit
+    // conversions such that `100cm + 10mm` would yield
+    // `101cm`.
     operate: function (op, other) {
-        var value = tree.operate(op, this.value, other.value),
-            unit = this.unit.clone();
-
-        if (op === '+' || op === '-') {
-          if (unit.numerator.length === 0 && unit.denominator.length === 0) {
-            unit.numerator = other.unit.numerator.slice(0);
-            unit.denominator = other.unit.denominator.slice(0);
-          } else if (other.unit.numerator.length == 0 && unit.denominator.length == 0) {
-            // do nothing
-          } else {
-            other = other.convertTo(this.unit.usedUnits());
-
-            if(other.unit.toCSS() !== unit.toCSS()) {
-              throw new Error("Incompatible units: '" + unit.toCSS() +
-                "' and '" + other.unit.toCSS() + "'.");
-            }
-
-            value = tree.operate(op, this.value, other.value);
-          }
-        } else if (op === '*') {
-          unit.numerator = unit.numerator.concat(other.unit.numerator).sort();
-          unit.denominator = unit.denominator.concat(other.unit.denominator).sort();
-          unit.cancel();
-        } else if (op === '/') {
-          unit.numerator = unit.numerator.concat(other.unit.denominator).sort();
-          unit.denominator = unit.denominator.concat(other.unit.numerator).sort();
-          unit.cancel();
-        }
-        return new(tree.Dimension)(value, unit);
+        return new(tree.Dimension)
+                  (tree.operate(op, this.value, other.value),
+                  this.unit || other.unit);
     },
 
     compare: function (other) {
         if (other instanceof tree.Dimension) {
-            var a = this.unify(), b = other.unify(),
-                aValue = a.value, bValue = b.value;
-
-            if (bValue > aValue) {
+            if (other.value > this.value) {
                 return -1;
-            } else if (bValue < aValue) {
+            } else if (other.value < this.value) {
                 return 1;
             } else {
-                if (!b.unit.isEmpty() && a.unit.compare(b) !== 0) {
+                if (other.unit && this.unit !== other.unit) {
                     return -1;
                 }
                 return 0;
@@ -2559,156 +2506,7 @@ tree.Dimension.prototype = {
         } else {
             return -1;
         }
-    },
-
-    unify: function () {
-      return this.convertTo({ length: 'm', duration: 's' });
-    },
-
-    convertTo: function (conversions) {
-      var value = this.value, unit = this.unit.clone(),
-          i, groupName, group, conversion, targetUnit;
-
-      for (groupName in conversions) {
-        if (conversions.hasOwnProperty(groupName)) {
-          targetUnit = conversions[groupName];
-          group = tree.UnitConversions[groupName];
-
-          unit.map(function (atomicUnit, denominator) {
-            if (group.hasOwnProperty(atomicUnit)) {
-              if (denominator) {
-                value = value / (group[atomicUnit] / group[targetUnit]);
-              } else {
-                value = value * (group[atomicUnit] / group[targetUnit]);
-              }
-
-              return targetUnit;
-            }
-
-            return atomicUnit;
-          });
-        }
-      }
-
-      unit.cancel();
-
-      return new(tree.Dimension)(value, unit);
     }
-};
-
-// http://www.w3.org/TR/css3-values/#absolute-lengths
-tree.UnitConversions = {
-  length: {
-     'm': 1,
-    'cm': 0.01,
-    'mm': 0.001,
-    'in': 0.0254,
-    'pt': 0.0254 / 72,
-    'pc': 0.0254 / 72 * 12
-  },
-  duration: {
-     's': 1,
-    'ms': 0.001
-  }
-};
-
-tree.Unit = function (numerator, denominator) {
-  this.numerator = numerator ? numerator.slice(0).sort() : [];
-  this.denominator = denominator ? denominator.slice(0).sort() : [];
-};
-
-tree.Unit.prototype = {
-  clone: function () {
-    return new tree.Unit(this.numerator.slice(0), this.denominator.slice(0));
-  },
-
-  toCSS: function () {
-    var i, css = this.numerator.join("*");
-    for (i = 0; i < this.denominator.length; i++) {
-      css += "/" + this.denominator[i];
-    }
-    return css;
-  },
-  
-  compare: function (other) {
-    return this.is(other.toCSS()) ? 0 : -1;
-  },
-
-  is: function (unitString) {
-    return this.toCSS() === unitString;
-  },
-
-  isEmpty: function () {
-    return this.numerator.length == 0 && this.denominator.length == 0;
-  },
-
-  map: function(callback) {
-    var i;
-
-    for (i = 0; i < this.numerator.length; i++) {
-      this.numerator[i] = callback(this.numerator[i], false);
-    }
-
-    for (i = 0; i < this.denominator.length; i++) {
-      this.denominator[i] = callback(this.denominator[i], true);
-    }
-  },
-
-  usedUnits: function() {
-    var group, groupName, result = {};
-
-    for (groupName in tree.UnitConversions) {
-      if (tree.UnitConversions.hasOwnProperty(groupName)) {
-        group = tree.UnitConversions[groupName];
-
-        this.map(function (atomicUnit) {
-          if (group.hasOwnProperty(atomicUnit) && !result[groupName]) {
-            result[groupName] = atomicUnit;
-          }
-
-          return atomicUnit;
-        });
-      }
-    }
-
-    return result;
-  },
-
-  cancel: function () {
-    var counter = {}, atomicUnit, i;
-
-    for (i = 0; i < this.numerator.length; i++) {
-      atomicUnit = this.numerator[i];
-      counter[atomicUnit] = (counter[atomicUnit] || 0) + 1;
-    }
-
-    for (i = 0; i < this.denominator.length; i++) {
-      atomicUnit = this.denominator[i];
-      counter[atomicUnit] = (counter[atomicUnit] || 0) - 1;
-    }
-
-    this.numerator = [];
-    this.denominator = [];
-
-    for (atomicUnit in counter) {
-      if (counter.hasOwnProperty(atomicUnit)) {
-        var count = counter[atomicUnit];
-
-        if (count > 0) {
-          for (i = 0; i < count; i++) {
-            this.numerator.push(atomicUnit);
-          }
-        } else if (count < 0) {
-          for (i = 0; i < -count; i++) {
-            this.denominator.push(atomicUnit);
-          }
-        }
-      }
-    }
-
-    this.numerator.sort();
-    this.denominator.sort();
-  }
 };
 
 })(require('../tree'));
@@ -2821,62 +2619,6 @@ tree.Expression.prototype = {
         }).join(' ');
     }
 };
-
-})(require('../tree'));
-(function (tree) {
-
-tree.Extend = function Extend(elements, index) {
-    this.selector = new(tree.Selector)(elements);
-    this.index = index;
-};
-
-tree.Extend.prototype.eval = function Extend_eval(env, selectors) {
-    var selfSelectors = findSelfSelectors(selectors || env.selectors),
-        targetValue = this.selector.elements[0].value;
-
-    env.frames.forEach(function(frame) {
-        frame.rulesets().forEach(function(rule) {
-            rule.selectors.forEach(function(selector) {
-                selector.elements.forEach(function(element, idx) {
-                    if (element.value === targetValue) {
-                        selfSelectors.forEach(function(_selector) {
-                            _selector.elements[0] = new tree.Element(
-                                element.combinator,
-                                _selector.elements[0].value,
-                                _selector.elements[0].index
-                            );
-                            rule.selectors.push(new tree.Selector(
-                                selector.elements
-                                    .slice(0, idx)
-                                    .concat(_selector.elements)
-                                    .concat(selector.elements.slice(idx + 1))
-                            ));
-                        });
-                    }
-                });
-            });
-        });
-    });
-    return this;
-};
-
-function findSelfSelectors(selectors) {
-    var ret = [];
-
-    (function loop(elem, i) {
-        if (selectors[i] && selectors[i].length) {
-            selectors[i].forEach(function(s) {
-                loop(s.elements.concat(elem), i + 1);
-            });
-        }
-        else {
-            ret.push({ elements: elem });
-        }
-    })([], 0);
-
-    return ret;
-}
-
 
 })(require('../tree'));
 (function (tree) {
@@ -3409,7 +3151,7 @@ tree.Paren = function (node) {
 };
 tree.Paren.prototype = {
     toCSS: function (env) {
-        return '(' + this.value.toCSS(env).trim() + ')';
+        return '(' + this.value.toCSS(env) + ')';
     },
     eval: function (env) {
         return new(tree.Paren)(this.value.eval(env));
@@ -3547,12 +3289,6 @@ tree.Ruleset.prototype = {
         // push the current ruleset to the frames stack
         env.frames.unshift(ruleset);
 
-        // currrent selectors
-        if (!env.selectors) {
-            env.selectors = [];
-        }
-        env.selectors.unshift(this.selectors);
-
         // Evaluate imports
         if (ruleset.root || ruleset.allowImports || !ruleset.strictImports) {
             ruleset.evalImports(env);
@@ -3577,14 +3313,6 @@ tree.Ruleset.prototype = {
                 ruleset.resetCache();
             }
         }
-        
-        if (this.selectors) {
-            for (var i = 0; i < this.selectors.length; i++) {
-                if (this.selectors[i].extend) {
-                    this.selectors[i].extend.eval(env, [[this.selectors[i]]].concat(env.selectors.slice(1)));
-                }
-            }
-        }
 
         // Evaluate everything else
         for (var i = 0, rule; i < ruleset.rules.length; i++) {
@@ -3597,7 +3325,6 @@ tree.Ruleset.prototype = {
 
         // Pop the stack
         env.frames.shift();
-        env.selectors.shift();
         
         if (env.mediaBlocks) {
             for(var i = mediaBlockCount; i < env.mediaBlocks.length; i++) {
@@ -3654,9 +3381,12 @@ tree.Ruleset.prototype = {
         return this.variables()[name];
     },
     rulesets: function () {
-        return this.rules.filter(function (r) {
-            return (r instanceof tree.Ruleset) || (r instanceof tree.mixin.Definition);
-        });
+        if (this._rulesets) { return this._rulesets }
+        else {
+            return this._rulesets = this.rules.filter(function (r) {
+                return (r instanceof tree.Ruleset) || (r instanceof tree.mixin.Definition);
+            });
+        }
     },
     find: function (selector, self) {
         self = self || this;
@@ -3950,9 +3680,8 @@ tree.Ruleset.prototype = {
 })(require('../tree'));
 (function (tree) {
 
-tree.Selector = function (elements, extend) {
+tree.Selector = function (elements) {
     this.elements = elements;
-    this.extend = extend;
 };
 tree.Selector.prototype.match = function (other) {
     var elements = this.elements,
@@ -3978,7 +3707,7 @@ tree.Selector.prototype.match = function (other) {
 tree.Selector.prototype.eval = function (env) {
     return new(tree.Selector)(this.elements.map(function (e) {
         return e.eval(env);
-    }), this.extend);
+    }));
 };
 tree.Selector.prototype.toCSS = function (env) {
     if (this._css) { return this._css }
@@ -4240,7 +3969,7 @@ function loadStyleSheet(sheet, callback, reload, remaining) {
         error(e, name);
         quit(1);
     }
-    print("don1e");
+    print("done");
 }(arguments));
 
 function error(e, filename) {
@@ -4256,7 +3985,7 @@ function error(e, filename) {
     var errorline = function (e, i, classname) {
         if (e.extract[i]) {
             content += 
-            String(parseInt(e.line) + (i - 1)) + 
+                String(parseInt(e.line) + (i - 1)) + 
                 ":" + e.extract[i] + "\n";
         }
     };
@@ -4269,5 +3998,5 @@ function error(e, filename) {
         errorline(e, 1);
         errorline(e, 2);
     }
-    cljError( content);
+   cljError(content);
 }

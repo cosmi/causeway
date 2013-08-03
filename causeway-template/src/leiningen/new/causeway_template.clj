@@ -43,9 +43,9 @@
              ["bootconfig/prod.clj" (render "config/prod.clj" data)]
              )
     (write-resources data
-     "public/css/sample.less"
+     "precompiled/css/sample.less"
      "public/index.html"
-     "public/js/sample.coffee"
+     "precompiled/js/sample.coffee"
      "templates/index.html"
      "variants/en/public/index.html"
      "variants/pl/public/index.html"

@@ -11,29 +11,43 @@
         [{{name}}.app :only [public-routes logged-routes]]
         [{{name}}.admin :only [admin-routes]])
   (:require [compojure.handler :as handler]
-            [{{name}}.localized]))
+            [{{name}}.localized]
+            [causeway.assets.handlers :as handlers]))
 
 (set-default-url-templates-provider!
  (combine-providers
   (variant-provider "variants" "templates")
   (resource-provider "templates")))
 
+
+(def lesscss-handler 
+    (handlers/lesscss-handler "precompiled/css"
+                           ["sample.css"]))
+
+(def coffee-script-handler 
+    (handlers/coffee-script-handler "precompiled/js"
+                                    ["sample.js"]))
+
+(defroutes precompiled-resource-routes
+  (context "/css" []
+    lesscss-handler)
+  (context "/js" []
+    coffee-script-handler))
+
 (defroutes resource-routes
-  (-> (combine-providers
-       ;; TODO: Remove if you don't use variants
-       (variant-provider "variants" "public")
-       (resource-provider "public"))
-      ;; TODO: Remove if you don't use coffeescript:
-      (wrap-processor (coffee-script-processor) "coffee" "js")
-      ;; TODO: Remove if you don't use lesscss:
-      (wrap-processor (less-css-processor) "less" "css")
+  precompiled-resource-routes
+  (let [provider (combine-providers
+                  ;; TODO: Remove if you don't use variants
+                  (variant-provider "variants" "public")
+                  (resource-provider "public"))]
+  (-> provider
       (cond->
        (not (devmode?))
        (->
         (wrap-processor (yui-css-compressor) "css" "css")
         (wrap-processor (uglify-js-compressor) "js" "js")
         wrap-resource-lookup-caching))
-      resource-handler))
+      resource-handler)))
 
 (def main-handler
   (-> 

@@ -6,13 +6,17 @@
         [ring.middleware.head :only [wrap-head]]
         [ring.util.response :only [url-response]])
   (:import java.io.File)
-  (:import ro.isdc.wro.extensions.processor.js.RhinoCoffeeScriptProcessor
+  (:import ro.isdc.wro.model.resource.Resource
+           ro.isdc.wro.model.resource.ResourceType
+           ro.isdc.wro.extensions.processor.js.RhinoCoffeeScriptProcessor
            ro.isdc.wro.extensions.processor.js.UglifyJsProcessor
            ro.isdc.wro.extensions.processor.css.RhinoLessCssProcessor
-           ro.isdc.wro.extensions.processor.css.YUICssCompressorProcessor)
+           ro.isdc.wro.extensions.processor.css.YUICssCompressorProcessor
+           ro.isdc.wro.model.resource.processor.impl.css.LessCssImportPreProcessor)
   (:require [clojure.java.io :as io]
             [digest]
-            [clojure.core.cache :as cache]))
+            [clojure.core.cache :as cache]
+            [causeway.compilers.lesscss :as lesscss]))
 
 
 
@@ -44,12 +48,16 @@
   (fn [path]
     (some #(% path) providers)))
 
+(defn wrap-resource-handler [handler]
+  (-> handler
+      (wrap-file-info)
+      (wrap-head)))
+
 (defn resource-handler [provider]
   (-> (GET "/*" {{file-path :*} :route-params}
         (when-let [url (-> file-path provider)]
           (url-response url)))
-      (wrap-file-info)
-      (wrap-head)))
+      wrap-resource-handler))
 
 (defn create-temp-dir [nom]
   (doto (java.io.File/createTempFile nom "")
@@ -60,8 +68,6 @@
 
 
 (defn resource-processor-cache-url [url processor-id new-ext]
-  
-    (prn :PROCESSING url)
   (let [file (io/as-file url)
         ts (.lastModified file)
         parent-path (->
@@ -99,27 +105,39 @@
          (provider path))))))
 
 
-(defn create-processor [processor]
+(defn create-processor [processor resource-type]
   (fn [from-url to-url]
     (doto processor
-      (.process (io/make-reader from-url nil)
+      (.process (Resource/create (.getPath from-url) resource-type)
+                (io/make-reader from-url nil)
                 (io/make-writer to-url nil)))))
 
 (defn coffee-script-processor []
   (let [processor (RhinoCoffeeScriptProcessor.)]
-    (create-processor processor)))
+    (create-processor processor ResourceType/JS)))
 
-(defn less-css-processor []
-  (let [processor (RhinoLessCssProcessor.)]
-    (create-processor processor)))
+
+(defn set-private-field [instance field-name value]
+  (doto (some
+         #(-> % .getName (.equals field-name))
+         (-> instance .getClass .getDeclaredFields))
+       (.setAccessible true)
+       (.get instance)))
+
+
+(defn less-css-processor [version provider]
+  (let [script (lesscss/get-less-script version)]
+    (fn [from-url to-url]
+      (->> (lesscss/compile-file script from-url provider)
+           (spit to-url)))))
 
 (defn yui-css-compressor []
   (let [processor (YUICssCompressorProcessor.)]
-    (create-processor processor)))
+    (create-processor processor ResourceType/CSS)))
 
 (defn uglify-js-compressor []
   (let [processor (UglifyJsProcessor.)]
-    (create-processor processor)))
+    (create-processor processor ResourceType/JS)))
 
 (defn wrap-resource-lookup-caching [fun]
   (let [cache (cache/soft-cache-factory {})]
@@ -129,3 +147,14 @@
           (cache/hit cache params)
           (cache/miss cache params (fun path)))
         (cache/lookup cache params)))))
+
+
+
+(defn wrap-filter [provider fun]
+  (let [fun (if (instance? java.util.regex.Pattern fun)
+              #(re-matches fun %)
+              fun)]
+    (fn [path]
+      (when (fun path)
+        (provider path)))))
+

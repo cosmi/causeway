@@ -6,7 +6,9 @@
    :port 27017
    :properties-db nil
    :properties-coll "props"
-   :mode :dev})
+   :mode :dev
+   :variants-root "variants"
+   :less-version "1.3.3"})
    
                        
 
