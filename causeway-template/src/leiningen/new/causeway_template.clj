@@ -44,6 +44,7 @@
              )
     (write-resources data
      "precompiled/css/sample.less"
+     "precompiled/css/sample-sass.scss"
      "public/index.html"
      "precompiled/js/sample.coffee"
      "templates/index.html"
