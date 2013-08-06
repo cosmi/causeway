@@ -1,7 +1,10 @@
 (ns causeway.assets.handlers
   (:use causeway.assets
+        causeway.assets.providers
         compojure.core
-        causeway.bootconfig))
+        causeway.bootconfig
+        [causeway.compilers.lesscss :only [less-css-processor]]
+        [causeway.compilers.sass :only [sass-processor]]))
 
 
 
@@ -32,6 +35,27 @@
      (wrap-precompile paths root)
      (wrap-filter path-filter)
      resource-handler)))
+
+(defn sass-handler [root paths]
+  (let [variants-root (bootconfig :variants-root)
+        less-version (bootconfig :less-version)
+        provider (combine-providers
+                       (variant-provider variants-root root)
+                       (resource-provider root))
+        path-filter (set paths)]
+    (->
+     provider
+     (wrap-processor (sass-processor provider) "scss" "css")
+     (cond->
+      (not (devmode?))
+      (-> 
+       (wrap-processor (yui-css-compressor) "css" "css")
+       wrap-resource-lookup-caching))
+     (wrap-precompile paths root)
+     (wrap-filter path-filter)
+     resource-handler)))
+
+
 
 
 (defn coffee-script-handler [root paths]

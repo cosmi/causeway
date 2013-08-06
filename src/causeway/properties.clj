@@ -2,19 +2,15 @@
   (:require [monger.core :as mg]
             [hiccup.core :as hc]
             [clojure.string :as strings]
-            [ring.util.response :as response])
+            [ring.util.response :as response]
+            [causeway.scratch-db :as scratch])
   (:use monger.operators
         compojure.core
         [monger.multi.collection :only [find-map-by-id update-by-id remove-by-id] :as mongo]
         [causeway.bootconfig]
         ))
 
-
-(def ^:private db-connection 
-    (mg/connect { :host (bootconfig :host), :port (bootconfig :port) }))
-
-(def ^:private props-db
-  (mg/get-db db-connection (bootconfig :properties-db)))
+(def ^:private props-db scratch/db)
 
 (def ^:private PROPS (bootconfig :properties-coll))
 

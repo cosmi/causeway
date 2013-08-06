@@ -44,3 +44,11 @@
       (js/eval script))
       @result
       ))
+
+
+
+(defn less-css-processor [version provider]
+  (let [script (get-less-script version)]
+    (fn [path from-url to-url]
+      (->> (compile-file script from-url provider)
+           (spit to-url)))))

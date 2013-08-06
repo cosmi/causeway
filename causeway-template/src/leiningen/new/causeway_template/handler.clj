@@ -1,4 +1,5 @@
 (ns {{name}}.handler
+  (:gen-class)
   (:use [causeway.properties :only [defprop prop-panel]]
         [causeway.bootconfig :only [devmode? bootconfig]]
         [compojure.route :only [not-found resources]]

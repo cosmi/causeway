@@ -6,6 +6,7 @@
    :port 27017
    :properties-db nil
    :properties-coll "props"
+   :preview-memo-coll "preview-memo"
    :mode :dev
    :variants-root "variants"
    :less-version "1.3.3"})
