@@ -1,4 +1,4 @@
-(defproject causeway-template/lein-template "0.2.0"
+(defproject causeway-template/lein-template "0.2.1"
   :description "Project template for using with causeway"
   :url "https://github.com/cosmi/causeway"
   :license {:name "Eclipse Public License"
