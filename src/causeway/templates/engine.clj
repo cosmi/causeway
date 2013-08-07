@@ -256,11 +256,11 @@
      (swap! *tags* assoc from (fn [[node & nodes]] (cons (compile-fn node) nodes)))))
 
 (defmacro def-block-tag [from to args & body]
-  `(add-tag! ~from ~to (fn ~args ~@body)))
+  `(do (add-tag! ~from ~to (fn ~args ~@body)) ~[from to]))
 
 
 (defmacro def-single-tag [tagname args & body]
-  `(add-tag! ~tagname (fn ~args ~@body)))
+  `(do (add-tag! ~tagname (fn ~args ~@body)) ~tagname))
 
 
 
@@ -279,7 +279,7 @@
       (-> inp (compile-seq @*tags*)
           seq-emitter)))
 
-(def ^:dynamic *templates-provider* nil)
+(defonce ^:dynamic *templates-provider* nil)
 
 (defn get-source [path]
   (*templates-provider* path))
@@ -289,6 +289,7 @@
     (save-block! ::root emitter)))
 
 (defn load-template-from-path [template-name]
+  (prn :template> template-name)
   (-> template-name
       *templates-provider*
       load-template-from-string))
@@ -359,7 +360,7 @@
 (def-single-tag "extends" [node]
   (let [args (node :args)
         filename (second (re-matches #"\"(.*)\"" args))]
-    (assert filename)
+    (assert filename (format "Parsing error on filename: {%s}" args))
     (load-template-from-path filename)))
 
 

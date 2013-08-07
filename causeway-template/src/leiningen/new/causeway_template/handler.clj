@@ -4,7 +4,7 @@
         [causeway.bootconfig :only [devmode? bootconfig]]
         [compojure.route :only [not-found resources]]
         [compojure.core :only [context defroutes routes]]
-        [causeway.utils :only [routes-when]]
+        [causeway.utils :only [routes-when wrap-access-fn]]
         [causeway.validation :only [wrap-validation]]
         [causeway.assets]
         [causeway.assets.providers]
@@ -61,7 +61,7 @@
   (-> 
    (routes
      #'public-routes
-     (routes-when (is-logged-in?)
+     (wrap-access-fn #(is-logged-in?)
        #'logged-routes)
      #'admin-routes
      (routes-when (devmode?)
