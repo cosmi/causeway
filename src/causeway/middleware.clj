@@ -13,7 +13,8 @@
         [ring.middleware.file-info :only [wrap-file-info]]
         [causeway.validation :only [wrap-validation]]
         [noir.util.middleware :only [wrap-request-map]])
-  (:require [clojure.string :as s]))
+  (:require [clojure.string :as s]
+            [ring.middleware.keyword-params]))
 
 
 

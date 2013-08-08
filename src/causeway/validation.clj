@@ -50,6 +50,11 @@
     (set-value! field (get new-value field))
      ))
 
+(defn call-validator [validator]
+  (prn :call *input* *output*)
+  (swap! *output* merge (validator @*input*)))
+
+
 (defmacro rule [field test error-msg]
   `(let [field# ~field]
      (when-not (has-error? field#)
@@ -137,6 +142,26 @@
              (do
                ~@(rest else))
              (throw e#)))))))
+
+
+(defmacro validate-let
+  "Acts as if-let, but if first clause leaves any validation errors, then it will proceed with second clause."
+
+  [[sym val :as let-form] on-good on-error]
+  (assert (vector? let-form) "Let-form has to be a vector")
+  (assert (-> let-form count (= 2)) "Let-form has to have only 2 elements")
+  `(let [~sym ~val
+         res# (when ~sym
+                (try
+                  ~on-good
+                  (catch clojure.lang.ExceptionInfo e#
+                    (let [data# (ex-data e#)]
+                      (if (data# ::validation)
+                        nil
+                        (throw e#))))))]
+     (if (has-errors?)
+       ~on-error
+       res#)))
 
 
 (defmacro optional [& body]
