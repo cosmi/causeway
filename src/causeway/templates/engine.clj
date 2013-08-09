@@ -293,7 +293,6 @@
     (save-block! ::root emitter)))
 
 (defn load-template-from-path [template-name]
-  (prn :template> template-name)
   (save-block! ::root (-> template-name
                           *templates-provider*
                           (str->emitter template-name))))
@@ -346,7 +345,6 @@
 
 (def-block-tag "block" "endblock" [start-node inner end-node]
   (let [[word rst] (strings/split (start-node :args) #"\s")]
-    (prn :>block word inner)
     (assert (empty? rst))
     (save-block! word (seq-emitter inner))
     (get-block word)))
