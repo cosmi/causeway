@@ -1,5 +1,6 @@
 (ns causeway.templates.engine
-  (:require [clojure.string :as strings]))
+  (:require [clojure.string :as strings]
+            [clojure.walk :as walk]))
 
 (def ^:private SEP (char 0))
 
@@ -97,7 +98,14 @@
   (let [args (read-string (str \( args \)))]
     args))
 
+
+(defn- is-var-name? [arg]
+  (re-matches #"([-_\w\.]+)" arg)
+  )
+
+
 (defn- sym->path [sym]
+  (assert (is-var-name? sym) (str "Not a valid variable name: " sym))
   (let [path (-> sym
                 name
                 (strings/split #"\.")
@@ -186,16 +194,16 @@
     )))
       
 
-(defn- compile-seq [nodes blocks]
+(defn- compile-seq [nodes tags-set]
   (let [[node & rnodes] nodes]
     (when node
       (case (:type node)
-        :text  (cons (:text node) (compile-seq rnodes blocks))
-        nil (compile-seq rnodes blocks)
-        :var (cons (var-emitter node) (compile-seq rnodes blocks))
-        :tag (let [bfn (blocks (-> node :tagname))]
+        :text  (cons (:text node) (compile-seq rnodes tags-set))
+        nil (compile-seq rnodes tags-set)
+        :var (cons (var-emitter node) (compile-seq rnodes tags-set))
+        :tag (let [bfn (tags-set (-> node :tagname))]
                  (cond->
-                  (cons node (compile-seq rnodes blocks))
+                  (cons node (compile-seq rnodes tags-set))
                   bfn bfn))))))
 
 
@@ -211,10 +219,6 @@
   (swap! *blocks* #(cond-> % (not (contains? % name)) (assoc name fun))))
 
 
-
-(defn- is-var-name? [arg]
-  (re-matches #"([-\w\.]+)" arg)
-  )
 
 
 (defn- var-fn [args]
@@ -290,9 +294,9 @@
 
 (defn load-template-from-path [template-name]
   (prn :template> template-name)
-  (-> template-name
-      *templates-provider*
-      load-template-from-string))
+  (save-block! ::root (-> template-name
+                          *templates-provider*
+                          (str->emitter template-name))))
 
 (defmacro encapsulate-template [& body]
   `(binding [*blocks* (atom {})]
@@ -306,6 +310,20 @@
 
 ;;;; TAGS:
 
+(defn replace-syms-with-rep-points [val]
+  (walk/postwalk
+   #(if (symbol? %)
+      (with-meta (vec (sym->path %)) {::replace true})
+      %)
+   val))
+
+(defn replace-rep-points-with-vals [val input]
+  (walk/postwalk
+   #(if (-> % meta ::replace)
+      (get-in input %)
+      %)
+   val))
+
 
 (def-block-tag "if" "endif" [if-node inner endif-node]
   (let [[then else-node else] (take-nodes-until-tag inner "else")
@@ -316,11 +334,24 @@
        (then %)
        (else %))))
 
+
+(def-block-tag "ifempty" "endifempty" [if-node inner endif-node]
+  (let [[then else-node else] (take-nodes-until-tag inner "else")
+        if-sel (sym->path (if-node :args))
+        then (seq-emitter then)
+        else (seq-emitter else)]
+    #(if (empty? (get-in % if-sel))
+       (then %)
+       (else %))))
+
 (def-block-tag "block" "endblock" [start-node inner end-node]
   (let [[word rst] (strings/split (start-node :args) #"\s")]
+    (prn :>block word inner)
     (assert (empty? rst))
     (save-block! word (seq-emitter inner))
     (get-block word)))
+
+
 
 (def-block-tag "for" "endfor" [for-node inner end-node]
   (let [[_ id source] (re-matches #"(\S+)\s*in\s*(\S+)" (for-node :args))
@@ -355,7 +386,12 @@
                  sym->path)]
     #(let [v (lookup % path)]
        ((or (get cases v) (get cases ::else)) %))))
+
+
+(def-block-tag "comment" "endcomment" [start-node inner end-node]
+  nil)
     
+
 
 (def-single-tag "extends" [node]
   (let [args (node :args)
@@ -364,12 +400,31 @@
     (load-template-from-path filename)))
 
 
+(defn split-arg-pairs [s]
+  (if-not  (re-matches #"(\s*([-_\w\.]+)\s*=\s*([-_\w\.]+|\"([^\"]|\\\")\")\s*)(,\s*([-_\w\.]+)\s*=\s*([-_\w\.]+|\"([^\"]|\\\")\")\s*)*" s)
+    (throw (Exception. (str "Cannot parse string: " s)))
+    (let [seq (re-seq #"(?:([-_\w\.]+)\s*=\s*(?:([-_\w\.]+)|\"([^\"]|\\\")\"))" s)]
+      (map rest seq))))
+
+
 (def-single-tag "include" [node]
   (let [args (node :args)
-        filename (second (re-matches #"\"(.*)\"" args))]
-    (assert filename (prn-str "?? " args filename))
-    (encapsulate-template 
-     (load-template-from-path filename))))
+        [filename args-str] (strings/split args #"with")
+        filename (second (re-matches #"\"(.*?)\"\s*" filename))
+        args (when args-str (split-arg-pairs args-str))]
+    (assert filename (prn-str "Include lacks filename" args filename))
+    
+    (let [fun (encapsulate-template (load-template-from-path filename))]
+      (if-not args
+        fun
+        (let [args (for [[new-var old-var a-str] args]
+                      [(sym->path new-var) (if old-var (sym->path old-var) a-str)])]
+          (fn [input]
+            (-> (reduce #(assoc-in % (first %2)
+                                   (if (string? (second %2))
+                                     (second %2)
+                                     (get-in % (second %2)))) input args)
+                fun)))))))
 
 
 (def-single-tag "when" [node]
