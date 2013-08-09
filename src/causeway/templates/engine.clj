@@ -239,7 +239,7 @@
   (if-ops x))
              
   
-(defn- if-selector [args]
+(defn if-selector [args]
   (if-let [[_ a op b] (re-matches #"(\S+)\s+(=)\s+(\S+)" args)]
     (let [a (val-fn a)
           b (val-fn b)

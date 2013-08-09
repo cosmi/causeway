@@ -2,6 +2,7 @@
   (:import java.io.File)
   (:use causeway.assets.utils
         causeway.assets.providers
+        causeway.bootconfig
         sass.core)
   (:require [clojure.java.io :as io]))
 
@@ -88,8 +89,9 @@
 (defn sass-processor [provider]
   (fn [path from-url to-url]
     (let [work-path (prepare-sass-imports provider path)]
-      (spit to-url (render-file-path work-path)))))
-
+      (spit to-url (apply render-file-path work-path
+                          (when (devmode?) [:line_numbers true]))))))
+ 
 
 
 
