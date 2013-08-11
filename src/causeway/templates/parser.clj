@@ -1,79 +1,110 @@
 (ns causeway.templates.parser
-  (:use [clojure.match :only [match]]
+  (:use [clojure.core.match :only [match]]
         [causeway.templates.variables])
-  (:require [instaparse.core :as insta]))
+  (:require [instaparse.core :as insta]
+            [clojure.string :as strings]))
 
 
-(def args-base "
-ArgsList = <'('><ws>? (V (<ws>? <','>? <ws>? V)+ <ws>?)? <')'>;
-V = Var <ws>? <eq> <ws>? A;
+(def grammar-base "
 ws = #'\\s+';
-eq = '=';
-<A> = Var | Int  ;
+AnyText = #'([^%]|%[^\\}])*';
+
+
 Var = Sym (<'.'> Sym)*;
 <Sym> = #'[a-zA-Z-_][a-zA-Z-_0-9]*';
 Int = #'[0-9]+';
-Str = <'\"'> #'([^\"]|\\\")*' <'\"'>;
-Kword = <':'> #'[a-zA-Z-_0-9]+';")
+Str = <'\"'> #'([^\"]|\\\\\")*' <'\"'>;
+Kword = <':'> #'[a-zA-Z-_0-9]+';
+Expr = Var | Int | Str | Kword ;
+
+VarInput = <'{{'> Expr  <'}}'>;
+BeginTag = '{%' <ws>?;
+EndTag = <ws>? '%}';
+
+Text = #'([^{]|\\{[^{%])*';
+
+Content = Text ( (Tag | VarInput) Text)*;
+")
+
+
+
+
+
+
+(defn prepare-parser [tags]
+  (let [grammar (apply str
+          grammar-base
+          "Tag = "
+          (apply str  (interpose " | " (map name (keys tags))))
+          ";"
+          (for [[k {:keys [rules fun]}] tags]
+            rules))]
+  (insta/parser grammar
+                :start :Content)))
   
 
-(def var-decl "VarDec = <ws>?Var<ws>? ArgsList?<ws>?;")
 
-(def filter-decl "FilterDec = <ws>?Sym<ws>?ArgsList?<ws>?;")
-
-(def flat-args-parser
-  (insta/parser
-   (str "<S>=<ws>? V (<ws>? <','>? <ws>? V)+ <ws>?;" args-base)))
+(def get-parser
+  (let [prepare-parser (memoize prepare-parser)]
+    (fn get-parser []
+      (prepare-parser @*tags*))))
 
 
-(def var-parser
-  (insta/parser
-   (str  args-base)))
+(defn unescape-str [s]
+  (-> s
+   (strings/replace "\\\"" "\"")
+   (strings/replace "\\\\" "\\")))
+
+(defn parse-expr [[_ element]]
+  (match element
+         [:Str value]
+         (unescape-str value)
+         [:Int value]
+         (constantly (Integer/parseInt value))
+         [:Kword value]
+         (constantly (keyword value))
+         [:Var & kwords]
+         (let [kwords (map keyword kwords)]
+           #(get-in *input* kwords))))
+         
+
+(defn parse-tag [tree]
+  (match tree
+         [:Tag subtree]
+         (let [[tagname] subtree]
+           (((get @*tags* tagname) :fun) subtree))))
+
+(defn parse-text [tree]
+  (match tree
+         [:Text text]
+         (constantly text)))
+
+(defn parse-var-input [tree]
+  (match tree
+         [:VarInput expr]
+         (parse-expr expr)))
 
 
 
-(defn convert-parsed-value [[type & [x :as value]]]
-  (case type
-    :Str x
-    :Int (Integer/parseInt x)
-    :Kword (keyword x)
-    :Var (let [value (map keyword value)]
-           #(get-in % value))))
 
-(defn flat-args-generator [args]
-  (let [args 
-        (for [[_ [_ & keys] value] args]
-          (let [value (convert-parsed-value value)
-                keys (map keyword keys)]
-            [keys value]
-            ))]
-    (fn [input]
-      (reduce (fn [m [k, v]] (if (fn? v) (assoc-in m k (v input)) (assoc-in m k v)))
-              {} args))))
-
-(defn parse-flat-args [s]
-  (-> (flat-args-parser s)
-      flat-args-generator))
-
-(def var-parser
-  (insta/parser
-   (str "<S>= <ws>? VarDec <ws>? ( <'|'> <ws>? FilterDec <ws>?)* "
-        var-decl filter-decl args-base)))
-
-(defn create-var-fun [[_ [var-dec & keys] [args-list & vals]]]
-  (let [keys (map keyword keys)
-        v-fn #(get-in % keys)
-        args-fn (when args-list (flat-args-generator vals)) ]
-    (if args-list
-      #((v-fn %) (args-fn %))
-      v-fn)))
-
-
-(def prepare-var-fun [s]
-  (let [i (-> s var-parser)
-        var-fn (create-var-fun (first i))
-        filters (rest i)]
-    (reduce 
+(defn parse-ast [tree]
+  (match tree
+         [:Content & elements1]
+         (let [elements (doall (for [el elements1]
+                                 (match el
+                                        [:Tag & _] (parse-tag el)
+                                        [:Text & _] (parse-text el)
+                                        [:VarInput & _] (parse-var-input el))))]
+           (fn [] (doall (map #(%) elements))))))
   
-      
-  ))
+
+
+
+
+
+(defn parse-template-ast [tree]
+  (let [path *current-template*
+        fun (parse-ast tree)]
+    (fn []
+      (binding [*current-template* path]
+        (doall (fun))))))
