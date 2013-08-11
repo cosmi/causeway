@@ -1,6 +1,7 @@
 (ns causeway.templates.engine
   (:require [clojure.string :as strings]
-            [clojure.walk :as walk]))
+            [clojure.walk :as walk])
+  (:use [causeway.templates.variables]))
 
 (def ^:private SEP (char 0))
 
@@ -136,7 +137,6 @@
     (replace "`"  "&#96;")))
 
 
-(def ^:dynamic *filters* (atom {}))
 
 (defmacro def-filter
   ([nom args & body]
@@ -209,14 +209,6 @@
 
 
 
-(def ^{:private true :dynamic true} *tags* (atom {}))
-
-(def ^{:private true :dynamic true} *blocks* nil)
-(defn get-block [name]
-  (-> *blocks* deref (get name)))
-
-(defn save-block! [name fun]
-  (swap! *blocks* #(cond-> % (not (contains? % name)) (assoc name fun))))
 
 
 
@@ -253,21 +245,6 @@
 
 
 
-(defn add-tag!
-  ([from to compile-fn]
-     (swap! *tags* assoc from (block-selector from to compile-fn)))
-  ([from compile-fn]
-     (swap! *tags* assoc from (fn [[node & nodes]] (cons (compile-fn node) nodes)))))
-
-(defmacro def-block-tag [from to args & body]
-  `(do (add-tag! ~from ~to (fn ~args ~@body)) ~[from to]))
-
-
-(defmacro def-single-tag [tagname args & body]
-  `(do (add-tag! ~tagname (fn ~args ~@body)) ~tagname))
-
-
-
 ;; Template builter functions:
 
 
@@ -283,7 +260,6 @@
       (-> inp (compile-seq @*tags*)
           seq-emitter)))
 
-(defonce ^:dynamic *templates-provider* nil)
 
 (defn get-source [path]
   (*templates-provider* path))

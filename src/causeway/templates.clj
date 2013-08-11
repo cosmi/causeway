@@ -3,6 +3,7 @@
             [clojure.java.io :as io]
             [clojure.core.cache :as cache])
   (:use causeway.templates.engine
+        causeway.templates.variables
         causeway.variants
         [causeway.bootconfig :only [devmode?]]))
 
@@ -20,7 +21,7 @@
   #(let [source (-> % source-fn)]
      (prn % source)
      (slurp (or source
-                (throw (Exception. "No such file: " %))))))
+                (throw (Exception. (str "No such file: " %)))))))
 
 (defmacro with-url-templates-provider [source-fn & body]
   `(binding [*templates-provider* (make-provider-from-url-fn ~source-fn)]
