@@ -1,36 +1,45 @@
 (ns causeway.templates
   (:require [clojure.string :as strings]
             [clojure.java.io :as io]
-            [clojure.core.cache :as cache])
+            [clojure.core.cache :as cache]
+            [causeway.templates tags])
   (:use causeway.templates.engine
+        causeway.templates.variables
         causeway.variants
+        [causeway.assets.providers :only [resource-provider]]
         [causeway.bootconfig :only [devmode?]]))
-
-
-(defn create-template-from-string [string]
-  (-> string load-template-from-string encapsulate-template finalize-emitter))
-
-(defn create-template [path]
-  (-> path load-template-from-path encapsulate-template finalize-emitter))
-
-
 
 
 (defn make-provider-from-url-fn [source-fn]
   #(let [source (-> % source-fn)]
      (prn % source)
      (slurp (or source
-                (throw (Exception. "No such file: " %))))))
+                (throw (Exception. (str "No such file: " %)))))))
 
-(defmacro with-url-templates-provider [source-fn & body]
-  `(binding [*templates-provider* (make-provider-from-url-fn ~source-fn)]
-     ~@body))
+
+(alter-var-root #'causeway.templates.variables/*templates-provider*
+                (constantly
+                 (make-provider-from-url-fn (resource-provider "templates"))))
 
 (defn set-default-templates-provider! [source-fn]
   (alter-var-root #'*templates-provider* (constantly source-fn)))
 
 (defn set-default-url-templates-provider! [source-fn]
   (-> source-fn make-provider-from-url-fn set-default-templates-provider!))
+
+
+
+(defmacro with-url-templates-provider [source-fn & body]
+  `(binding [*templates-provider* (make-provider-from-url-fn ~source-fn)]
+     ~@body))
+
+
+(defn create-template [path]
+  (get-template path *templates-provider*))
+
+
+
+
 
 
 
