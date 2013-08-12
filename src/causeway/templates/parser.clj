@@ -18,6 +18,8 @@ ReservedWords = 'count' | 'not' | 'empty' | 'or' | 'and' ;
 
 VarExpr = Var (Filter)+;
 Var = !ReservedWords Sym (<'.'> Sym)*;
+CljVar = #'[a-zA-Z-_][a-zA-Z-_0-9]*(\\.[a-zA-Z-_][a-zA-Z-_0-9]*)*/[a-zA-Z-_][a-zA-Z-_0-9]*'
+
 <Sym> = #'[a-zA-Z-_][a-zA-Z-_0-9]*';
 Int = #'[0-9]+';
 Str = <'\"'> #'([^\"]|\\\\\")*' <'\"'>;
@@ -25,9 +27,9 @@ Kword = <':'> #'[a-zA-Z-_0-9]+';
 
 Vec = <'['> <ws>? (SubExpr (<comma> SubExpr)* <ws>?)?  <']'>;
 ConstVec = <'['> <ws>? (ConstExpr (<comma> ConstExpr)* <ws>?)? <']'>;
-<ConstExpr> = Int | Str | Kword | ConstVec;
+<ConstExpr> = Int | Str | Kword | ConstVec | CljVar;
 <SingleExpr> = Var / ConstExpr / Vec;
-<SubExpr> = SingleExpr | OpExpr;
+<SubExpr> = SingleExpr / OpExpr;
 Expr = SubExpr;
 
 <OpExpr> = OpExpr00;
@@ -60,8 +62,9 @@ Not = <'not' > <ws>? OpExpr70;
 Empty = <'empty' > <ws>? OpExpr70;
 Count = <count> <ws>? OpExpr70;
 
-<OpExpr80> = Index | OpExpr100;
-Index = (OpExpr100 | Index) <ws>? (ConstVec / Vec);
+<OpExpr80> = Index | Call | OpExpr100;
+Index = OpExpr80 <ws>? (ConstVec / Vec);
+Call = OpExpr80 <ws>? (<'('> ArgsList <')'>);
 
 <OpExpr100> = <'('> <ws>? SubExpr <ws>? <')'> | SingleExpr;
 
@@ -134,6 +137,8 @@ OverrideArg = Var <eq> Expr;
    (strings/replace "\\\"" "\"")
    (strings/replace "\\\\" "\\")))
 
+
+(def parse-args-list)
 (defn parse-subexpr [element]
   (match element
          [:Str value]
@@ -155,7 +160,14 @@ OverrideArg = Var <eq> Expr;
          (let [expr1 (parse-subexpr expr1)
                expr2 (parse-subexpr expr2)]
            #(get-in (expr1) (expr2)))
-         
+         [:Call expr1 argslist]
+         (let [expr1 (parse-subexpr expr1)
+               argslist (parse-args-list argslist)]
+           #(apply (expr1) (argslist)))
+
+         [:CljVar s]
+         (let [fun (-> s symbol find-var deref)]
+           #(do fun))
          [op & subtree]
          (let [subtree (doall (map parse-subexpr subtree))
                ops {:Plus +
@@ -168,7 +180,7 @@ OverrideArg = Var <eq> Expr;
                     :GTE >=
                     :GT >
                     :LTE <=
-                    :Lt <
+                    :LT <
                     :Not not
                     :Count count
                     :Empty empty?}
@@ -268,7 +280,6 @@ OverrideArg = Var <eq> Expr;
 
 
 (defn parse-override-list [tree]
-  (prn :>>>> tree)
   (let [olist
         (match tree
                [:OverrideList & args]
