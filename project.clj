@@ -1,4 +1,4 @@
-(defproject org.cosmi.causeway "0.2.3"
+(defproject org.cosmi.causeway "0.3.0-SNAPSHOT"
   :description "Simple library for rapid web development with Clojure"
   :url "https://github.com/cosmi/causeway"
   :license {:name "Eclipse Public License"
@@ -13,6 +13,8 @@
                  [clj-time "0.5.1"]
                  [org.marianoguerra/clj-rhino "0.2.1"]
                  [com.novemberain/monger "1.6.0"]
+                 [instaparse "1.2.2"]
+                 [org.clojure/core.match "0.2.0-rc5"]
                  [ro.isdc.wro4j/wro4j-extensions "1.7.0"
                   :exclusions
                   [
