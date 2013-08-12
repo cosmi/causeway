@@ -73,7 +73,7 @@ ExtendsTag =  <BeginTag> <'extends'> <ws>? Str <EndTag>;
 
 (register-tag! :IncludeTag
                "
-IncludeTag =  <BeginTag> <'include'> <ws>? Str <EndTag>;
+IncludeTag =  <BeginTag> <'include'> <ws>? Str (<ws> ('only' <ws>)? <'with'> OverrideList )? <EndTag>;
 "
                (fn [tree]
                  (match tree
@@ -81,5 +81,72 @@ IncludeTag =  <BeginTag> <'include'> <ws>? Str <EndTag>;
                          [:Str s]]
                         (let [subtemplate 
                               (get-template (unescape-str s) *templates-provider*)]
+                          #(subtemplate *input*))
+                        [:IncludeTag
+                         [:Str s]
+                         olist]
+                        (let [subtemplate 
+                              (get-template (unescape-str s) *templates-provider*)
+                              olist (parse-override-list olist)]
+                          #(subtemplate (olist)))
+                        [:IncludeTag
+                         [:Str s]
+                         "only"
+                         olist]
+                        (let [subtemplate 
+                              (get-template (unescape-str s) *templates-provider*)
+                              olist (parse-override-list olist)]
+                          #(subtemplate (binding [*input* {}] (olist)))))))
 
-                          #(subtemplate *input*)))))
+
+
+
+(register-tag! :CommentTag
+               "
+CommentTag = <CommentTagBegin> <Content> <CommentTagEnd>;
+CommentTagBegin =  <BeginTag> <'comment'> <AnyText> <EndTag>;
+CommentTagEnd =  <BeginTag> <'endcomment'> <AnyText> <EndTag>;
+"
+               (fn [tree]
+                 (constantly nil)))
+
+
+
+(register-tag! :ForTag
+               "
+ForTag = ForTagBegin Content (<ForTagEmpty> Content)? ForTagEnd;
+ForTagBegin = <BeginTag> <'for'> <ws> Var <ws> <'in'> <ws> Expr <EndTag>;
+ForTagEnd = <BeginTag> <'endfor'> <AnyText> <EndTag>;
+ForTagEmpty = <BeginTag> <'empty'> <AnyText> <EndTag>;
+"
+               (fn [tree]
+                 (match tree
+                        [:ForTag
+                         [:ForTagBegin [:Var & keys] expr]
+                         c1
+                         [:ForTagEnd]]
+                        (let [expr (parse-expr expr)
+                              c1 (parse-ast c1)
+                              keys (map keyword keys)]
+                          (fn [] (doall
+                                  (for [v (expr)]
+                                    (binding [*input* (assoc-in *input* keys v)]
+                                      (c1))))))
+                        [:ForTag
+                         [:ForTagBegin [:Var & keys] expr]
+                         c1
+                         c2
+                         [:ForTagEnd]]
+                        (let [expr (parse-expr expr)
+                              c1 (parse-ast c1)
+                              c2 (parse-ast c2)
+                              keys (map keyword keys)]
+                          (fn [] 
+                            (let [e (expr)]
+                              (if (empty? e)
+                                (c2)
+                                (doall (for [v e]
+                                         (binding [*input* (assoc-in *input* keys v)]
+                                           (c1)))))))))))
+
+

@@ -7,7 +7,7 @@
 
 
 (register-filter! :CountFilter
-                  "CountFilter = <pipe> <'count'>;"
+                  "CountFilter = <pipe> <count>;"
                   (fn CountFilter [tree]
                     (let [tree (butlast tree)
                           sub (parse-var-expr tree)]

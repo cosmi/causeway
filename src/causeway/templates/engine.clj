@@ -10,9 +10,8 @@
         parser (get-parser)
         ast (parser string :total true)]
     (if (insta/failure? ast)
-      {:root (constantly (str path ": " (prn-str (insta/get-failure ast))
-                              "<p>" ast))
-       :path *current-template*}
+      (throw (Exception. (str path ": " (prn-str (insta/get-failure ast))
+                              "<p>" ast)))
       (loading-template path
                         (let [fun (parse-template-ast ast)]
                           {:root fun
@@ -25,7 +24,6 @@
   (fn [input]
     (binding [*blocks* blocks
               *input* input]
-      
       (->> (fun) flatten (apply str)))))
 
 (defn get-template [path provider]
