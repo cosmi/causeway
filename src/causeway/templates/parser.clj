@@ -16,7 +16,6 @@ AnyText = #'([^%]|%[^\\}])*';
 
 ReservedWords = 'count' | 'not' | 'empty' | 'or' | 'and' ;
 
-VarExpr = Var (Filter)+;
 Var = !ReservedWords Sym (<'.'> Sym)*;
 CljVar = #'[a-zA-Z-_][a-zA-Z-_0-9]*(\\.[a-zA-Z-_][a-zA-Z-_0-9]*)*/[a-zA-Z-_][a-zA-Z-_0-9]*'
 
@@ -68,7 +67,7 @@ Call = OpExpr80 <ws>? (<'('> ArgsList <')'>);
 
 <OpExpr100> = <'('> <ws>? SubExpr <ws>? <')'> | SingleExpr;
 
-VarInput = <BeginVar> (VarExpr | Expr) <EndVar>;
+VarInput = <BeginVar> Expr (Filter)*<EndVar>;
 BeginTag = '{%' <ws>?;
 EndTag = <ws>? '%}';
 BeginVar= '{{' <ws>?;
@@ -207,33 +206,28 @@ OverrideArg = Var <eq> Expr;
          [:Text text]
          (constantly text)))
 
-(defn parse-var-expr [tree]
+(defn parse-filter-expr [tree]
   (let [tree (vec tree)]
     (match tree
-           [:VarExpr
-            [:Var & kwords]]
-           (let [kwords (map keyword kwords)]
-             #(get-in *input* kwords))
-           [:VarExpr
-            [:Var & kwords]
+           [[:Expr expr]]
+           (parse-subexpr expr)
+           [[:Expr expr]
             & filters]
-           (let [filter (last filters)]
+           (let [filter (last filters)
+                 tree (vec tree)]
              (match filter
                     [:Filter f]
                     (((get @*filters* (first f)) :fun) tree))))))
 
 (defn parse-var-input [tree]
   (match tree
-         [:VarInput [:Expr [:Var & kwords]]]
-         (let [kwords (map keyword kwords)]
-           #(-> (get-in *input* kwords)
+         [:VarInput [:Expr expr]]
+         (let [expr (parse-subexpr expr)]
+           #(-> (expr)
                 str
-                escape-html
-                ))
-         [:VarInput [:VarExpr & expr]]
-         (parse-var-expr (second tree))
-         [:VarInput [:Expr val]]
-         (parse-subexpr val)))
+                escape-html))
+         [:VarInput [:Expr val] & filters]
+         (parse-filter-expr (vec (rest tree)))))
 
 
 

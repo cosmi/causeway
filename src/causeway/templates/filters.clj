@@ -10,7 +10,7 @@
                   "CountFilter = <pipe> <count>;"
                   (fn CountFilter [tree]
                     (let [tree (butlast tree)
-                          sub (parse-var-expr tree)]
+                          sub (parse-filter-expr tree)]
                       #(-> (sub) count))))
 
 
@@ -18,22 +18,22 @@
                   "SafeFilter = <pipe> <'safe'>;"
                   (fn SafeFilter [tree]
                     (let [tree (butlast tree)
-                          sub (parse-var-expr tree)]
+                          sub (parse-filter-expr tree)]
                       sub)))
 
 (register-filter! :EscapeFilter
                   "EscapeFilter = <pipe> <'esc'>;"
                   (fn EscapeFilter [tree]
                     (let [tree (butlast tree)
-                          sub (parse-var-expr tree)]
+                          sub (parse-filter-expr tree)]
                       #(-> (sub) escape-html))))
                   
 
-(register-filter! :CallFilter
-                  "CallFilter = <ws>? <'('> <ws>? ArgsList <ws>? <')'>;"
-                  (fn CallFilter [tree]
-                    (let [[_filter [callfilter argslist]] (last tree)
-                          tree (butlast tree)
-                          sub (parse-var-expr tree)
-                          argslist (parse-args-list argslist)]
-                      #(-> (sub) (apply (argslist))))))
+;; (register-filter! :CallFilter
+;;                   "CallFilter = <ws>? <'('> <ws>? ArgsList <ws>? <')'>;"
+;;                   (fn CallFilter [tree]
+;;                     (let [[_filter [callfilter argslist]] (last tree)
+;;                           tree (butlast tree)
+;;                           sub (parse-var-expr tree)
+;;                           argslist (parse-args-list argslist)]
+;;                       #(-> (sub) (apply (argslist))))))

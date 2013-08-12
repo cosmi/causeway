@@ -55,6 +55,51 @@ BlockTagEnd = <BeginTag> <'endblock'> <ws> <AnyText> <EndTag>;
 
 
 
+(register-tag! :DefBlockTag
+               "
+DefBlockTag = DefBlockTagBegin Content DefBlockTagEnd;
+DefBlockTagBegin = <BeginTag> <'defblock'> <ws> Sym <EndTag>;
+DefBlockTagEnd = <BeginTag> <'enddefblock'> <ws> <AnyText> <EndTag>;
+"
+               (fn [tree]
+                 (match tree
+                        [:DefBlockTag
+                         [:DefBlockTagBegin nom]
+                         c1
+                         [:DefBlockTagEnd]]
+                        (let [c1 (parse-template-ast c1)]
+                          (save-block! nom c1)
+                          (constantly nil)))))
+
+
+(register-tag! :CallBlockTag
+               "
+CallBlockTag = <BeginTag> <'callblock'> <ws> Sym <with> (<ws> ('only' <ws>)? <'with'> OverrideList )? <EndTag>;;
+"
+               (fn [tree]
+                 (match tree
+                        [:CallBlockTag
+                         [:Str s]]
+                        #(let [block (get-block s)]
+                           (block))
+                        [:CallBlockTag
+                         [:Str s]
+                         olist]
+                        (let [olist (parse-override-list olist)]
+                          #(let [block (get-block s)]
+                             (binding [*input* (olist)]
+                               (block))))
+                        [:CallBlockTag
+                         [:Str s]
+                         "only"
+                         olist]
+                        (let [olist (parse-override-list olist)]
+                          #(let [block (get-block s)]
+                             (binding [*input* {}]
+                               (binding [*input* (olist)]
+                                 (block))))))))
+
+
 
 (register-tag! :ExtendsTag
                "
