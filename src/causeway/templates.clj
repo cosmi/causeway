@@ -2,7 +2,7 @@
   (:require [clojure.string :as strings]
             [clojure.java.io :as io]
             [clojure.core.cache :as cache]
-            [causeway.templates tags])
+            [causeway.templates tags filters])
   (:use causeway.templates.engine
         causeway.templates.variables
         causeway.variants

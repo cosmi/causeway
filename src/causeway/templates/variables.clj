@@ -9,6 +9,13 @@
   (swap! *tags* assoc tagname {:rules rules :fun fun}))
 
 
+(defonce ^:dynamic  *filters* (atom {}))
+
+(defn register-filter! [filtername rules fun]
+  (swap! *filters* assoc filtername {:rules rules :fun fun}))
+
+
+
 (def ^:dynamic *input* nil)
 
 

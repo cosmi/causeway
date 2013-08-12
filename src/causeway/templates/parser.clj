@@ -7,23 +7,37 @@
 
 (def grammar-base "
 ws = #'\\s+';
+pipe = <ws>? '|' <ws>?;
+comma = <ws>? ',' <ws>?;
+eq = <ws>? '=' <ws>?;
+
 AnyText = #'([^%]|%[^\\}])*';
 
-
+VarExpr = Var (Filter)+;
 Var = Sym (<'.'> Sym)*;
 <Sym> = #'[a-zA-Z-_][a-zA-Z-_0-9]*';
 Int = #'[0-9]+';
 Str = <'\"'> #'([^\"]|\\\\\")*' <'\"'>;
 Kword = <':'> #'[a-zA-Z-_0-9]+';
-Expr = Var | Int | Str | Kword ;
+<ConstExpr> = Int | Str | Kword;
+Expr = Var | ConstExpr ;
 
-VarInput = <'{{'> Expr  <'}}'>;
+VarInput = <BeginVar> (VarExpr | Expr) <EndVar>;
 BeginTag = '{%' <ws>?;
 EndTag = <ws>? '%}';
+BeginVar= '{{' <ws>?;
+EndVar = <ws>? '}}';
 
 Text = #'([^{]|\\{[^{%])*';
 
 Content = Text ( (Tag | VarInput) Text)*;
+
+ArgsList = <ws>? (<Epsilon> | (CommaArgsList (<comma> MapArgsList)?) | MapArgsList) <ws>?  ;
+
+<CommaArgsList> = Expr (<comma> Expr)*;
+
+<MapArgsList> = MapArg (<comma> MapArg)*;
+MapArg = Sym <eq> Expr;
 ")
 
 
@@ -31,14 +45,22 @@ Content = Text ( (Tag | VarInput) Text)*;
 
 
 
-(defn prepare-parser [tags]
+(defn prepare-parser [tags filters]
   (let [grammar (apply str
           grammar-base
           "Tag = "
           (apply str  (interpose " | " (map name (keys tags))))
           ";"
-          (for [[k {:keys [rules fun]}] tags]
-            rules))]
+          "Filter = "
+          (apply str  (interpose " | " (map name (keys filters))))
+          ";"
+          (interpose "\n" (concat
+                           (for [[k {:keys [rules fun]}] tags]
+                             rules)
+                           (for [[k {:keys [rules fun]}] filters]
+                             rules)))
+
+          )]
   (insta/parser grammar
                 :start :Content)))
   
@@ -47,7 +69,18 @@ Content = Text ( (Tag | VarInput) Text)*;
 (def get-parser
   (let [prepare-parser (memoize prepare-parser)]
     (fn get-parser []
-      (prepare-parser @*tags*))))
+      (prepare-parser @*tags* @*filters*))))
+
+(defn escape-html
+  "Change special characters into HTML character entities."
+  [text]
+  (.. #^String text
+    (replace "&" "&amp;")
+    (replace "<" "&lt;")
+    (replace ">" "&gt;")
+    (replace "\"" "&quot;")
+    (replace "'"  "&#39;")
+    (replace "`"  "&#96;")))
 
 
 (defn unescape-str [s]
@@ -79,10 +112,33 @@ Content = Text ( (Tag | VarInput) Text)*;
          [:Text text]
          (constantly text)))
 
+(defn parse-var-expr [tree]
+  (let [tree (vec tree)]
+    (match tree
+           [:VarExpr
+            [:Var & kwords]]
+           (let [kwords (map keyword kwords)]
+             #(get-in *input* kwords))
+           [:VarExpr
+            [:Var & kwords]
+            & filters]
+           (let [filter (last filters)]
+             (match filter
+                    [:Filter f]
+                    (((get @*filters* (first f)) :fun) tree))))))
+
 (defn parse-var-input [tree]
   (match tree
-         [:VarInput expr]
-         (parse-expr expr)))
+         [:VarInput [:Var & kwords]]
+         (let [kwords (map keyword kwords)]
+           #(-> (get-in *input* kwords)
+                str
+                escape-html
+                ))
+         [:VarInput [:VarExpr & expr]]
+         (parse-var-expr (second tree))
+         [& _]
+         (parse-expr (second tree))))
 
 
 
@@ -108,3 +164,19 @@ Content = Text ( (Tag | VarInput) Text)*;
     (fn []
       (binding [*current-template* path]
         (doall (fun))))))
+
+
+(defn parse-arg [tree]
+  (match tree
+         [:Expr & _]
+         [(parse-expr tree)]
+         [:MapArg v expr]
+         [(keyword v) (parse-expr expr)]))
+
+(defn parse-args-list [tree]
+  (match tree
+         [:ArgsList] (constantly nil)
+         [:ArgsList
+          & args]
+         (let [args (mapcat parse-arg args)]
+           (fn [] (map #(if (fn? %) (%) %) args)))))
