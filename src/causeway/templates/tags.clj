@@ -74,7 +74,7 @@ DefBlockTagEnd = <BeginTag> <'enddefblock'> <ws> <AnyText> <EndTag>;
 
 (register-tag! :CallBlockTag
                "
-CallBlockTag = <BeginTag> <'callblock'> <ws> Sym <with> (<ws> ('only' <ws>)? <'with'> OverrideList )? <EndTag>;;
+CallBlockTag = <BeginTag> <'callblock'> <ws> Sym (<ws> ('only' <ws>)? <'with'> OverrideList )? <EndTag>;
 "
                (fn [tree]
                  (match tree
