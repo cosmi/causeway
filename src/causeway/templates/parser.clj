@@ -68,14 +68,17 @@ Call = OpExpr80 <ws>? (<'('> ArgsList <')'>);
 <OpExpr100> = <'('> <ws>? SubExpr <ws>? <')'> | SingleExpr;
 
 VarInput = <BeginVar> Expr (Filter)*<EndVar>;
+RetainVarInput = <'{{{'> #'([^}]|}[^}]|}}[^}])' <'}}}'>;
 BeginTag = '{%' <ws>?;
 EndTag = <ws>? '%}';
 BeginVar= '{{' <ws>?;
 EndVar = <ws>? '}}';
+BeginComment = '{#';
+EndComment = '#}';
 
-Text = #'([^{]|\\{[^{%])*';
+Text = #'([^{]|\\{[^{%#])*';
 
-Content = Text ( (Tag | VarInput) Text)*;
+Content = Text ( (Tag | VarInput | RetainVarInput) Text)*;
 
 ArgsList = <ws>? (<Epsilon> | (CommaArgsList (<comma> MapArgsList)?) | MapArgsList) <ws>?  ;
 <CommaArgsList> = Expr (<comma> Expr)*;
@@ -160,7 +163,9 @@ OverrideArg = Var <eq> Expr;
                expr2 (parse-subexpr expr2)]
            #(get-in (expr1) (expr2)))
          [:Call expr1 argslist]
-         (let [expr1 (parse-subexpr expr1)
+         (let [_ (prn :CALL expr1 argslist)
+
+               expr1 (parse-subexpr expr1)
                argslist (parse-args-list argslist)]
            #(apply (expr1) (argslist)))
 
@@ -197,6 +202,7 @@ OverrideArg = Var <eq> Expr;
 
 (defn parse-tag [tree]
   (match tree
+         [:Tag] nil
          [:Tag subtree]
          (let [[tagname] subtree]
            (((get @*tags* tagname) :fun) subtree))))
@@ -235,11 +241,14 @@ OverrideArg = Var <eq> Expr;
 (defn parse-ast [tree]
   (match tree
          [:Content & elements1]
-         (let [elements (doall (for [el elements1]
-                                 (match el
-                                        [:Tag & _] (parse-tag el)
-                                        [:Text & _] (parse-text el)
-                                        [:VarInput & _] (parse-var-input el))))]
+         (let [elements (doall (remove nil?
+                                       (for [el elements1]
+                                         (match el
+                                                [:Tag & _] (parse-tag el)
+                                                [:Text & _] (parse-text el)
+                                                [:VarInput & _] (parse-var-input el)
+                                                [:RetainVarInput s]
+                                                (constantly (str "{{" s "}}"))))))]
            (fn [] (doall (map #(%) elements))))))
   
 

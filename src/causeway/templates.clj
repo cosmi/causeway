@@ -43,16 +43,17 @@
 
 
 
-(defn template [path]
-  (if (devmode?)
-    (fn [input] ((create-template path) input))
-    (let [cache (cache/soft-cache-factory {})]
-      (fn [input]
-        (let [params *variant-stack*]
-          (if (cache/has? cache params)
-            (cache/hit cache params)
-            (cache/miss cache params (create-template path)))
-          ((cache/lookup cache params) input))))))
+(def template
+  (let [cache (cache/soft-cache-factory {})]
+    (fn [path]
+      (if (devmode?)
+        (fn [input] ((create-template path) input))
+        (fn [input]
+          (let [params [input *variant-stack* *templates-provider*]]
+            (if (cache/has? cache params)
+              (cache/hit cache params)
+              (cache/miss cache params (create-template path)))
+            ((cache/lookup cache params) input)))))))
 
 
 (defn render [path args]

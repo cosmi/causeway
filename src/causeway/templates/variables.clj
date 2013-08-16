@@ -1,4 +1,5 @@
-(ns causeway.templates.variables)
+(ns causeway.templates.variables
+  (:require [clojure.string :as strings]))
 
 
 (defonce ^:dynamic *templates-provider* nil)
@@ -42,9 +43,13 @@
 (def ^:dynamic *current-template* nil)
 (def ^:dynamic *extends-template* nil)
 
+
+
+
+
 (defn set-extension! [path]
   (if *extends-template*
-    (throw (ex-info "Template extending twice" {:path *current-template*}))
+    (throw (ex-info "Template extended twice" {:path *current-template*}))
     (set! *extends-template* path)))
 
 
@@ -53,5 +58,4 @@
              *extends-template* nil
              *blocks* (atom {})]
      ~@body))
-
 

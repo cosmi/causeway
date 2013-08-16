@@ -3,7 +3,32 @@
         [causeway.templates.parser ]
         [causeway.templates.engine ]
         [clojure.core.match :only [match]])
-  (:require [instaparse.core :as insta]))
+  (:require [instaparse.core :as insta]
+            [clojure.string :as strings]))
+
+
+
+(defn- reduce-path [path]
+  (let [s (strings/split path #"/")]
+    (->> s
+         (reduce (fn [pre post]
+                   (case post
+                     ".."
+                     (try (pop pre) (catch IllegalStateException e
+                                      (throw (Exception. (str "Invalid path:" path)))))
+                     "."
+                     pre
+                     (conj pre post))) [] )
+         (interpose "/")
+         (apply str))))
+
+(defn get-relative-path [path]
+  (if (.startsWith path "/")
+    path
+    (-> (str 
+         (subs *current-template* 0 (inc (.lastIndexOf *current-template* "/")))
+         path)
+        reduce-path)))
 
 
 (register-tag! :IfTag
@@ -39,7 +64,7 @@ IfTagEnd = <BeginTag> <'endif'> <AnyText> <EndTag>;
                "
 BlockTag = BlockTagBegin Content BlockTagEnd;
 BlockTagBegin = <BeginTag> <'block'> <ws> Sym <EndTag>;
-BlockTagEnd = <BeginTag> <'endblock'> <ws> <AnyText> <EndTag>;
+BlockTagEnd = <BeginTag> <'endblock'> (<ws> <AnyText>)? <EndTag>;
 "
                (fn [tree]
                  (match tree
@@ -79,18 +104,18 @@ CallBlockTag = <BeginTag> <'callblock'> <ws> Sym (<ws> ('only' <ws>)? <'with'> O
                (fn [tree]
                  (match tree
                         [:CallBlockTag
-                         [:Str s]]
+                         s]
                         #(let [block (get-block s)]
                            (block))
                         [:CallBlockTag
-                         [:Str s]
+                         s
                          olist]
                         (let [olist (parse-override-list olist)]
                           #(let [block (get-block s)]
                              (binding [*input* (olist)]
                                (block))))
                         [:CallBlockTag
-                         [:Str s]
+                         s
                          "only"
                          olist]
                         (let [olist (parse-override-list olist)]
@@ -110,7 +135,7 @@ ExtendsTag =  <BeginTag> <'extends'> <ws>? Str <EndTag>;
                         [:ExtendsTag
                          [:Str s]]
                         (let [s (unescape-str s)]
-                          (set-extension! s)
+                          (set-extension! (get-relative-path s))
 
                           ))
                  (constantly nil)))
@@ -125,13 +150,17 @@ IncludeTag =  <BeginTag> <'include'> <ws>? Str (<ws> ('only' <ws>)? <'with'> Ove
                         [:IncludeTag
                          [:Str s]]
                         (let [subtemplate 
-                              (get-template (unescape-str s) *templates-provider*)]
+                              (get-template (-> s 
+                                                unescape-str
+                                                get-relative-path) *templates-provider*)]
                           #(subtemplate *input*))
                         [:IncludeTag
                          [:Str s]
                          olist]
                         (let [subtemplate 
-                              (get-template (unescape-str s) *templates-provider*)
+                              (get-template (-> s 
+                                                unescape-str
+                                                get-relative-path) *templates-provider*)
                               olist (parse-override-list olist)]
                           #(subtemplate (olist)))
                         [:IncludeTag
@@ -139,7 +168,9 @@ IncludeTag =  <BeginTag> <'include'> <ws>? Str (<ws> ('only' <ws>)? <'with'> Ove
                          "only"
                          olist]
                         (let [subtemplate 
-                              (get-template (unescape-str s) *templates-provider*)
+                              (get-template (-> s 
+                                                unescape-str
+                                                get-relative-path) *templates-provider*)
                               olist (parse-override-list olist)]
                           #(subtemplate (binding [*input* {}] (olist)))))))
 
@@ -148,12 +179,21 @@ IncludeTag =  <BeginTag> <'include'> <ws>? Str (<ws> ('only' <ws>)? <'with'> Ove
 
 (register-tag! :CommentTag
                "
-CommentTag = <CommentTagBegin> <Content> <CommentTagEnd>;
+<CommentTag> = <CommentTagBegin> <Content> <CommentTagEnd>;
 CommentTagBegin =  <BeginTag> <'comment'> <AnyText> <EndTag>;
 CommentTagEnd =  <BeginTag> <'endcomment'> <AnyText> <EndTag>;
 "
                (fn [tree]
                  (constantly nil)))
+
+
+(register-tag! :ShortCommentTag
+               "
+<ShortCommentTag> = <BeginComment> <#'([^#]|#[^}])*'> <EndComment>;
+"
+               (fn [tree]
+                 (constantly nil)))
+
 
 
 
@@ -193,5 +233,26 @@ ForTagEmpty = <BeginTag> <'empty'> <AnyText> <EndTag>;
                                 (doall (for [v e]
                                          (binding [*input* (assoc-in *input* keys v)]
                                            (c1)))))))))))
+
+
+
+(register-tag! :DefTag
+               "
+DefTag = <BeginTag> <'def'> <ws> OverrideList <EndTag>;
+"
+               (fn [[ _ olist]]
+                 (let [olist (parse-override-list olist)]
+                   #(do (var-set *input* (olist))
+                        nil))))
+
+
+
+(register-tag! :DebugTag
+               "
+DebugTag = <BeginTag> <'debug'> <EndTag>;
+"
+               (fn [tree]
+                 #(prn-str *input*)))
+
 
 
