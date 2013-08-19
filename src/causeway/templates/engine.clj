@@ -17,22 +17,33 @@
                           {:root fun
                            :blocks @*blocks*
                            :path *current-template*
-                           :extends *extends-template*})))))
+                           :extends *extends-template*
+                           :vars @*variables*})))))
 
 
-(defn wrap-template [fun blocks]
+(defn wrap-template [fun blocks vars]
   (fn [input]
     (binding [*blocks* blocks
-              *input* input]
+              *input* (loop [input input vars vars]
+                             (if-not (empty? vars)
+                               (let [[k v] (first vars)
+                                     input (binding [*input* input]
+                                             (assoc-in input k (v)))]
+                                 (recur input  (rest vars)))
+                               input))]
+      
+      
       (->> (fun) flatten (apply str)))))
 
 (defn get-template [path provider]
   (loop [template-path path res {}]
     (if template-path
-      (let [{:keys [root blocks path extends] :as nres} (load-template template-path provider)]
+      (let [{:keys [root blocks path extends vars] :as nres} (load-template template-path provider)]
         (recur extends {:root root
                         :blocks (merge blocks (res :blocks))
                         :path (res :path)
-                        :extends extends}))
+                        :extends extends
+                        :vars (vec (concat (res :vars) vars))}))
       (wrap-template (res :root)
-                     (res :blocks)))))
+                     (res :blocks)
+                     (res :vars)))))

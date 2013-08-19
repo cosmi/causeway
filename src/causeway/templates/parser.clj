@@ -14,7 +14,7 @@ count = <ws>? 'count' <ws>?;
 
 AnyText = #'([^%]|%[^\\}])*';
 
-ReservedWords = 'count' | 'not' | 'empty' | 'or' | 'and' ;
+ReservedWords = 'count' | 'not' | 'empty' | 'or' | 'and' | Const;
 
 Var = !ReservedWords Sym (<'.'> Sym)*;
 CljVar = #'[a-zA-Z-_][a-zA-Z-_0-9]*(\\.[a-zA-Z-_][a-zA-Z-_0-9]*)*/[a-zA-Z-_][a-zA-Z-_0-9]*'
@@ -23,16 +23,20 @@ CljVar = #'[a-zA-Z-_][a-zA-Z-_0-9]*(\\.[a-zA-Z-_][a-zA-Z-_0-9]*)*/[a-zA-Z-_][a-z
 Int = #'[0-9]+';
 Str = <'\"'> #'([^\"]|\\\\\")*' <'\"'>;
 Kword = <':'> #'[a-zA-Z-_0-9]+';
+Const = 'true' | 'false' | 'nil';
 
 Vec = <'['> <ws>? (SubExpr (<comma> SubExpr)* <ws>?)?  <']'>;
 ConstVec = <'['> <ws>? (ConstExpr (<comma> ConstExpr)* <ws>?)? <']'>;
-<ConstExpr> = Int | Str | Kword | ConstVec | CljVar;
+<ConstExpr> = Int | Str | Kword | ConstVec | CljVar | Const;
 <SingleExpr> = Var / ConstExpr / Vec;
 <SubExpr> = SingleExpr / OpExpr;
 Expr = SubExpr;
 
 <OpExpr> = OpExpr00;
-<OpExpr00> = Or | OpExpr10;
+<OpExpr00> = Ternary | OpExpr05;
+Ternary = OpExpr05 <'?'> OpExpr05 <':'> OpExpr05;
+
+<OpExpr05> = Or | OpExpr10;
 Or = OpExpr10 (<ws>? <'or'> <ws>? OpExpr10) +;
 <OpExpr10> = And | OpExpr20;
 And = OpExpr20 (<ws>? <'and'> <ws>? OpExpr20) +;
@@ -63,7 +67,7 @@ Count = <count> <ws>? OpExpr70;
 
 <OpExpr80> = Index | Call | OpExpr100;
 Index = OpExpr80 <ws>? (ConstVec / Vec);
-Call = OpExpr80 <ws>? (<'('> ArgsList <')'>);
+Call = OpExpr80 <ws>? <'('> (ArgsList? | <ws>?) <')'>;
 
 <OpExpr100> = <'('> <ws>? SubExpr <ws>? <')'> | SingleExpr;
 
@@ -141,7 +145,8 @@ OverrideArg = Var <eq> Expr;
 
 
 (def parse-args-list)
-(defn parse-subexpr [element]
+(def parse-subexpr)
+(defn parse-const [element]
   (match element
          [:Str value]
          (constantly (unescape-str value))
@@ -149,52 +154,94 @@ OverrideArg = Var <eq> Expr;
          (constantly (Integer/parseInt value))
          [:Kword value]
          (constantly (keyword value))
-         [:Var & kwords]
-         (let [kwords (map keyword kwords)]
-           #(get-in *input* kwords))
-         [:Vec & elements]
-         (let [elements (map parse-subexpr elements)]
-           (fn [] (mapv #(%) elements)))
+         [:Const value]
+         (constantly (case value
+                       "nil" nil
+                       "true" true
+                       "false" false))
          [:ConstVec & elements]
          (let [elements (mapv #(%) (mapv parse-subexpr elements))]
            (constantly elements))
-         [:Index expr1 expr2]
-         (let [expr1 (parse-subexpr expr1)
-               expr2 (parse-subexpr expr2)]
-           #(get-in (expr1) (expr2)))
-         [:Call expr1 argslist]
-         (let [_ (prn :CALL expr1 argslist)
+         :else nil))
 
-               expr1 (parse-subexpr expr1)
-               argslist (parse-args-list argslist)]
-           #(apply (expr1) (argslist)))
+(defn parse-op [element]
+  (match element
+       [op & subtree]
+          (let [subtree (mapv parse-subexpr subtree)
+                ops {:Plus +
+                     :Minus -
+                     :UnaryMinus -
+                     :Mult *
+                     :Div /
+                     :Equal =
+                     :NotEqual not=
+                     :GTE >=
+                     :GT >
+                     :LTE <=
+                     :LT <
+                     :Not not
+                     :Count count
+                     :Empty empty?}
+                
+                ]
+            (if-let [fun (ops op)]
+              (fn [] (apply fun (mapv #(%) subtree)))
+              (case op
+                :Or (fn [] (loop [subtree subtree]
+                             (when subtree
+                               (let [a (first subtree)
+                                     b (next subtree)]
+                                 (if b
+                                   (or (a) (recur b))
+                                   (a))
+                                 ))))
+                :And (fn [] (loop [subtree subtree]
+                              (when subtree
+                                (let [a (first subtree)
+                                      b (next subtree)]
+                                  (if b
+                                    (and (a) (recur (next subtree)))
+                                    (a))
+                                  )))))))))
+  
 
-         [:CljVar s]
-         (let [fun (-> s symbol find-var deref)]
-           #(do fun))
-         [op & subtree]
-         (let [subtree (doall (map parse-subexpr subtree))
-               ops {:Plus +
-                    :Minus -
-                    :UnaryMinus -
-                    :Mult *
-                    :Div /
-                    :Equal =
-                    :NotEqual not=
-                    :GTE >=
-                    :GT >
-                    :LTE <=
-                    :LT <
-                    :Not not
-                    :Count count
-                    :Empty empty?}
-                   
-                   ]
-           (if-let [fun (ops op)]
-             (fn [] (apply fun (map #(%) subtree)))
-             (case op
-                   :Or (fn [] (boolean (some #(%) subtree)))
-                   :And (fn [] (every? #(%) subtree)))))))
+(defn parse-subexpr [element]
+  (or
+   (parse-const element)
+   (match element
+          [:Var & kwords]
+          (let [kwords (mapv keyword kwords)]
+            #(get-in *input* kwords))
+          [:Vec & elements]
+          (let [elements (mapv parse-subexpr elements)]
+            (fn [] (mapv #(%) elements)))
+          
+          [:Index expr1 expr2]
+          (let [expr1 (parse-subexpr expr1)
+                expr2 (parse-subexpr expr2)]
+            #(get-in (expr1) (expr2)))
+          [:Call & rst]
+          (match rst
+                 [expr1]
+                 (let [expr1 (parse-subexpr expr1)]
+                   #((expr1)))
+                 [expr1 argslist]
+                 (let [expr1 (parse-subexpr expr1)
+                       argslist (parse-args-list argslist)]
+                   #(apply (expr1) (argslist))))
+
+          [:Ternary expr1 expr2 expr3]
+          (let [expr1 (parse-subexpr expr1)
+                expr2 (parse-subexpr expr2)
+                expr3 (parse-subexpr expr3)]
+            #(if (expr1) (expr2) (expr3)))
+
+          [:CljVar s]
+          (let [fun (-> s symbol find-var deref)]
+            #(do fun))
+          :else nil)
+   (parse-op element)
+          ))
 
 (defn parse-expr [expr]
   (match expr [:Expr el]
@@ -249,7 +296,7 @@ OverrideArg = Var <eq> Expr;
                                                 [:VarInput & _] (parse-var-input el)
                                                 [:RetainVarInput s]
                                                 (constantly (str "{{" s "}}"))))))]
-           (fn [] (doall (map #(%) elements))))))
+           (fn [] (mapv #(%) elements)))))
   
 
 
@@ -277,7 +324,7 @@ OverrideArg = Var <eq> Expr;
          [:ArgsList
           & args]
          (let [args (mapcat parse-arg args)]
-           (fn [] (map #(if (fn? %) (%) %) args)))))
+           (fn [] (mapv #(if (fn? %) (%) %) args)))))
 
 
 
@@ -291,9 +338,10 @@ OverrideArg = Var <eq> Expr;
                            [:OverrideArg
                             [:Var & kwords]
                             expr]
-                           [(map keyword kwords) (parse-expr expr)])))]
+                           [(mapv keyword kwords) (parse-expr expr)])))]
 
     (fn [] (reduce (fn [i [k v]]
-                     (assoc-in i k (v)))
-                   *input* olist))
+                     (prn :??? i k v)
+                            (assoc-in i k (v)))
+                          *input* olist))
          ))

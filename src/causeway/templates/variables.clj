@@ -17,7 +17,7 @@
 
 
 
-(def ^:dynamic *input* nil)
+(def ^:dynamic *input*)
 
 
 (defn get-input [& args]
@@ -52,10 +52,19 @@
     (throw (ex-info "Template extended twice" {:path *current-template*}))
     (set! *extends-template* path)))
 
+(def ^:dynamic *variables*)
+
+(defn save-variable! [nom fun]
+  (prn :>>> nom fun)
+  (swap! *variables* conj [nom fun]))
+
 
 (defmacro loading-template  [ template-name & body]
   `(binding [*current-template* ~template-name
              *extends-template* nil
-             *blocks* (atom {})]
+             *blocks* (atom {})
+             *variables* (atom [])]
      ~@body))
+
+
 

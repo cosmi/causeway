@@ -34,7 +34,7 @@
   (-> @*input* (get-in *context*) (get field)))
 
 (defn has-error? [field]
-  (-> *errors* deref (get-in *context*) (get field) not-empty))
+  (-> *errors* deref (get-in *context*) (get field)))
 
 
 

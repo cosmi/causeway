@@ -4,7 +4,8 @@
         [causeway.templates.engine ]
         [clojure.core.match :only [match]])
   (:require [instaparse.core :as insta]
-            [clojure.string :as strings]))
+            [clojure.string :as strings]
+            [clojure.pprint]))
 
 
 
@@ -97,6 +98,22 @@ DefBlockTagEnd = <BeginTag> <'enddefblock'> <ws> <AnyText> <EndTag>;
                           (constantly nil)))))
 
 
+(register-tag! :LetTag
+               "
+LetTag = LetTagBegin Content <LetTagEnd>;
+LetTagBegin = <BeginTag> <'let'> <ws> OverrideList <EndTag>;
+LetTagEnd = <BeginTag> <'endlet'> <ws>? <AnyText> <EndTag>;
+"
+               (fn [tree]
+                 (match tree
+                        [:LetTag
+                         [:LetTagBegin olist]
+                         c1]
+                        (let [c1 (parse-template-ast c1)
+                              olist (parse-override-list olist)]
+                          #(binding [*input* (olist)] (c1))))))
+
+
 (register-tag! :CallBlockTag
                "
 CallBlockTag = <BeginTag> <'callblock'> <ws> Sym (<ws> ('only' <ws>)? <'with'> OverrideList )? <EndTag>;
@@ -137,6 +154,40 @@ ExtendsTag =  <BeginTag> <'extends'> <ws>? Str <EndTag>;
                         (let [s (unescape-str s)]
                           (set-extension! (get-relative-path s))
 
+                          ))
+                 (constantly nil)))
+
+
+
+(defn get-mixin [path provider]
+  (loop [template-path path res {}]
+    (if template-path
+      (let [{:keys [root blocks path extends vars] :as nres} (load-template template-path provider)]
+        (recur extends {:root root
+                        :blocks (merge blocks (res :blocks))
+                        :path (res :path)
+                        :extends extends
+                        :vars vars}))
+      [(res :blocks) (res :vars)])))
+
+
+(register-tag! :MixinTag
+               "
+MixinTag =  <BeginTag> <'mixin'> <ws>? Str <EndTag>;
+"
+               (fn [tree]
+                 (match tree
+                        [:MixinTag
+                         [:Str s]]
+                        (let [s (unescape-str s)
+                              [blocks vars] (get-mixin (-> s 
+                                                           unescape-str
+                                                           get-relative-path) *templates-provider*)]
+                          (doseq [[k, v] blocks]
+                             (save-block! k v))
+                          (doseq [[k, v] vars]
+                            (save-variable! k v))
+                          
                           ))
                  (constantly nil)))
 
@@ -240,10 +291,16 @@ ForTagEmpty = <BeginTag> <'empty'> <AnyText> <EndTag>;
                "
 DefTag = <BeginTag> <'def'> <ws> OverrideList <EndTag>;
 "
-               (fn [[ _ olist]]
-                 (let [olist (parse-override-list olist)]
-                   #(do (var-set *input* (olist))
-                        nil))))
+               (fn [[ _ olist :as tree]]
+                 (prn :DEF tree)
+                 (doseq [arg (rest olist) ]
+                   (match arg
+                          [:OverrideArg [:Var & keys] expr]
+                          (let [keys (map keyword keys)
+                                expr (parse-expr expr)]
+                            (save-variable! keys expr)
+                            
+                            )))))
 
 
 
@@ -252,7 +309,42 @@ DefTag = <BeginTag> <'def'> <ws> OverrideList <EndTag>;
 DebugTag = <BeginTag> <'debug'> <EndTag>;
 "
                (fn [tree]
-                 #(prn-str *input*)))
+                 #(with-out-str (clojure.pprint/pprint *input*))
+                 ))
 
 
 
+
+(register-tag! :SwitchTag
+ "
+SwitchTag = SwitchTagBegin SwitchTagCase (<BeginTag> SwitchTagCase)* (SwitchTagElse)? <SwitchTagEnd>;
+<SwitchTagBegin> = <BeginTag> <'switch'> <ws> Expr;
+SwitchTagCase = <ws> <'case'> <ws> ConstExpr <EndTag> Content;
+SwitchTagElse = <BeginTag> <'else'> <AnyText> <EndTag> Content;
+SwitchTagEnd = <BeginTag> <'endswitch'> <AnyText> <EndTag>;
+"
+ (fn [tree]
+   (match tree
+          [:SwitchTag expr
+           & rst]
+          (let [expr (parse-expr expr)
+                cases (reduce (fn [m cs]
+                                (match cs
+                                       [:SwitchTagCase expr1 content]
+                                       (let [expr ((parse-subexpr expr1))
+                                             content (parse-ast content)]
+                                         (assoc m expr content))
+                                       
+                                       [:SwitchTagElse content]
+                                       (let [content (parse-ast content)]
+                                         (assoc m ::else content)))) {} rst)
+                else (cases ::else)
+                cases (dissoc cases ::else)]
+            #(let [v (expr)
+                   res (get cases v ::else)]
+               (if (= res ::else)
+                 (when else (else))
+                 (res)))))))
+              
+              
+              

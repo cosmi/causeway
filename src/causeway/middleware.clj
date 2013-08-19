@@ -12,7 +12,8 @@
         [ring.middleware.resource :only [wrap-resource]]
         [ring.middleware.file-info :only [wrap-file-info]]
         [causeway.validation :only [wrap-validation]]
-        [noir.util.middleware :only [wrap-request-map]])
+        [noir.util.middleware :only [wrap-request-map]]
+        [causeway.status :only [wrap-status-exception-handler]])
   (:require [clojure.string :as s]
             [ring.middleware.keyword-params]))
 
@@ -38,4 +39,5 @@
       (wrap-noir-cookies)
       (wrap-noir-flash)
       (wrap-noir-session
-       {:store (or store (memory-store mem))})))
+       {:store (or store (memory-store mem))})
+      wrap-status-exception-handler))
