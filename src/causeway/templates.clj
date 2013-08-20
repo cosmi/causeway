@@ -12,7 +12,6 @@
 
 (defn make-provider-from-url-fn [source-fn]
   #(let [source (-> % source-fn)]
-     (prn % source)
      (slurp (or source
                 (throw (Exception. (str "No such file: " %)))))))
 

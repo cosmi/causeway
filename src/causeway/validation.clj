@@ -51,7 +51,6 @@
      ))
 
 (defn call-validator [validator]
-  (prn :call *input* *output*)
   (swap! *output* merge (validator @*input*)))
 
 

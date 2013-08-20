@@ -1,13 +1,17 @@
 (ns causeway.devtools
-  (:require [lobos.core :as lobos]))
-
+  (:require [lobos.core :as lobos]
+            [lobos.migrations :as migrations]))
 
 (defn -main [arg & args]
   (case arg
     "migrate"
-    (lobos/migrate)
+    (do
+      (migrations/init)
+      (lobos/migrate))
 
     "rollback"
-    (lobos/rollback)
+    (do
+      (migrations/init)
+      (lobos/rollback))
 
     ))

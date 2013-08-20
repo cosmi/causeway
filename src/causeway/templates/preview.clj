@@ -5,6 +5,7 @@
         [causeway.bootconfig])
   (:require [hiccup.core :as hiccup]
             [causeway.scratch-db :as scratch]
+            [causeway.status :as status]
             [monger.multi.collection :as mongo]))
 
 (def MEMO-COLL (or (bootconfig :preview-memo-coll) "preview-memo"))
@@ -23,7 +24,6 @@
   (let [provider (resource-provider templates-root)]
     (routes
       (POST "/*" {{template-path :* } :route-params {:keys [data]} :params :as request}
-        (prn request)
         (when-let [read-data (binding [*read-eval* true]
                                (read-string data))]
           (memoize-template-data! templates-root template-path data)
@@ -31,7 +31,7 @@
             (render template-path read-data))))
       (GET "/*" {{template-path :*} :route-params}
         (if-not (provider template-path)
-          "dupa"
+          status/not-found
           (hiccup/html [:form {:method "post"}
                         [:label "Template data in clojure syntax:"
                          [:div [:textarea {:name "data"

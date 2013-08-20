@@ -341,7 +341,6 @@ OverrideArg = Var <eq> Expr;
                            [(mapv keyword kwords) (parse-expr expr)])))]
 
     (fn [] (reduce (fn [i [k v]]
-                     (prn :??? i k v)
-                            (assoc-in i k (v)))
-                          *input* olist))
-         ))
+                     (assoc-in i k (v)))
+                   *input* olist))
+    ))

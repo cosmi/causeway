@@ -136,10 +136,11 @@ CallBlockTag = <BeginTag> <'callblock'> <ws> Sym (<ws> ('only' <ws>)? <'with'> O
                          "only"
                          olist]
                         (let [olist (parse-override-list olist)]
-                          #(let [block (get-block s)]
+                          #(if-let [block (get-block s)]
                              (binding [*input* {}]
                                (binding [*input* (olist)]
-                                 (block))))))))
+                                 (block)))
+                             (throw (Exception. (str "No such block: " s))))))))
 
 
 
@@ -313,6 +314,16 @@ DebugTag = <BeginTag> <'debug'> <EndTag>;
                  ))
 
 
+
+(register-tag! :IdTag
+               "
+IdTag = <BeginTag> <'id'> (<ws> Sym)? <EndTag>;
+"
+               (fn [[_ sym]]
+                 (let [hash (hash *current-template*)
+                       nom (str sym "." hash)]
+                   (constantly nom)
+                 )))
 
 
 (register-tag! :SwitchTag
