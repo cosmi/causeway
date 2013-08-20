@@ -1,0 +1,11 @@
+{% extends "_layout.html" %}
+
+{% block content %}
+<h1> Hello, {{user.name or "Stranger"}}!</h1>
+{% if user.name %}
+<a href="{{links.logout}}" class="btn btn-warning ajaxify">Log out!</a>
+{% else %}
+Please, <a href="{{links.login}}" class="btn btn-warning">log in</a> or <a href="{{links.register}}" class="btn btn-warning">register</a>
+{% endif %}
+
+{% endblock %}

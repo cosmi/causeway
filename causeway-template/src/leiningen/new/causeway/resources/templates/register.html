@@ -1,0 +1,18 @@
+{% extends "_layout.html" %}
+{% mixin "/mixins/forms.html" %}
+
+{% block content %}
+<div class="row">
+	<div class="col-lg-8 col-lg-offset-2">
+		<form role="form" method="post" class="form-horizontal">
+			{%callblock horizontal-form-input  with name="email", label="Your email address", error=errors.email, value=form.email %}
+			{%callblock horizontal-form-input  with name="username", label="Your username (optional)", 
+				error=errors.username, value=form.username %}
+			{%callblock horizontal-form-input  with name="password", label="Password", error=errors.password, type="password" %}
+			{%callblock horizontal-form-input  with name="repeat-password", label="Repeat password", 
+				error=errors.repeat-password, type="password" %}
+			{%callblock horizontal-form-submit only with title="Sign up!"%}
+		</form>
+	</div>
+</div>
+{% endblock %}
