@@ -5,17 +5,17 @@
 If you are starting a new project: 
 
 ```bash
-lein new causeway-template project-name
+lein new causeway project-name
 cd project-name 
+lein run migrate
 lein ring server
 ```
 
 If you want to use `causeway` in an already existing project, add this to leiningen dependencies:
 
 ```clojure
-[causeway "0.1.1"]
+[causeway "0.4.0"]
 ```
-
 ## About
 Simple library for rapid web development with Clojure - designed with the following qualities in mind:
 * low interdependence - you should be able to take any one feature of this library and use it separately; or replace it with some other component. For instance, if you like hiccup, feel free to use it instead of the build in templating library.
