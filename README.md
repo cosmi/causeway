@@ -30,7 +30,7 @@ Among others, it includes the following features:
 
 * Assets and resources structure
 * Caching and serving of compiled web assets (right now LESSCSS, CoffeeScript and minimizers are supported, thanks to wro4j, but create an issue if you need any other)
-* Templates inspired by [clabango](https://github.com/danlarkin/clabango) (but improved) which in turn is inspired by Django templating library
+* Templates inspired by PHP's [twig](http://twig.sensiolabs.org/), Django's [Templates](https://docs.djangoproject.com/en/dev/ref/templates/) and finally Clojure's [clabango](https://github.com/danlarkin/clabango)
 * L10n, i18n and AB-testing supported through:
 ** variant resources (templates, compiled and static resources)
 ** `(loc "some string")` macro
