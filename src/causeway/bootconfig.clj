@@ -24,3 +24,6 @@
 
 (defn devmode? []
   (-> bootconfig :mode (= :dev)))
+
+(defn switch-devmode [state]
+  (alter-var-root #'bootconfig assoc :mode (when state :dev)))

@@ -122,15 +122,17 @@ CallBlockTag = <BeginTag> <'callblock'> <ws> Sym (<ws> ('only' <ws>)? <'with'> O
                  (match tree
                         [:CallBlockTag
                          s]
-                        #(let [block (get-block s)]
-                           (block))
+                        #(if-let [block (get-block s)]
+                           (block)
+                           (throw (Exception. (str "No such block: " s))))
                         [:CallBlockTag
                          s
                          olist]
                         (let [olist (parse-override-list olist)]
-                          #(let [block (get-block s)]
+                          #(if-let [block (get-block s)]
                              (binding [*input* (olist)]
-                               (block))))
+                               (block))
+                             (throw (Exception. (str "No such block: " s)))))
                         [:CallBlockTag
                          s
                          "only"
@@ -247,43 +249,62 @@ CommentTagEnd =  <BeginTag> <'endcomment'> <AnyText> <EndTag>;
                  (constantly nil)))
 
 
+(defn convert-varvec [varvec]
+  (match varvec
+         [:Var & keys]
+         (let [keys (map keyword keys)]
+           #(assoc-in %1 keys %2))
+
+         [:VarVec & elements]
+         (let [[els [_ rst]] (split-with #(not= % "&") elements)
+               els (doall (map convert-varvec els))
+               rst (when rst (convert-varvec rst))
+               splt (count els)]
+           #(let [[vels vrst] (split-at splt %2)
+                  e (cond-> (mapv list els vels)
+                            rst (conj (list rst vrst)))]
+              (prn :EEEE e)
+              (reduce (fn [input [e v]]
+                        (e input v))
+                      %1 e)))))
+  
 
 
 (register-tag! :ForTag
                "
 ForTag = ForTagBegin Content (<ForTagEmpty> Content)? ForTagEnd;
-ForTagBegin = <BeginTag> <'for'> <ws> Var <ws> <'in'> <ws> Expr <EndTag>;
+ForTagBegin = <BeginTag> <'for'> <ws> VarLike <ws> <'in'> <ws> Expr <EndTag>;
 ForTagEnd = <BeginTag> <'endfor'> <AnyText> <EndTag>;
 ForTagEmpty = <BeginTag> <'empty'> <AnyText> <EndTag>;
 "
                (fn [tree]
                  (match tree
                         [:ForTag
-                         [:ForTagBegin [:Var & keys] expr]
+                         [:ForTagBegin varvec expr]
                          c1
                          [:ForTagEnd]]
                         (let [expr (parse-expr expr)
                               c1 (parse-ast c1)
-                              keys (map keyword keys)]
+                              varvec (convert-varvec varvec)]
                           (fn [] (doall
                                   (for [v (expr)]
-                                    (binding [*input* (assoc-in *input* keys v)]
+                                    (binding [*input* (varvec *input* v)]
                                       (c1))))))
                         [:ForTag
-                         [:ForTagBegin [:Var & keys] expr]
+                         [:ForTagBegin varvec expr]
                          c1
                          c2
                          [:ForTagEnd]]
                         (let [expr (parse-expr expr)
                               c1 (parse-ast c1)
                               c2 (parse-ast c2)
-                              keys (map keyword keys)]
+                              varvec (convert-varvec varvec)]
                           (fn [] 
                             (let [e (expr)]
                               (if (empty? e)
                                 (c2)
                                 (doall (for [v e]
-                                         (binding [*input* (assoc-in *input* keys v)]
+                                         (binding [*input* (varvec *input* v)]
                                            (c1)))))))))))
 
 
@@ -354,7 +375,9 @@ SwitchTagEnd = <BeginTag> <'endswitch'> <AnyText> <EndTag>;
             #(let [v (expr)
                    res (get cases v ::else)]
                (if (= res ::else)
-                 (when else (else))
+                 (if else
+                   (else)
+                   (throw (Exception. (str "No switch case matching value: " (prn-str v)) )))
                  (res)))))))
               
               

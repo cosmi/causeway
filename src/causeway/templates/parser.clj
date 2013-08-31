@@ -32,6 +32,9 @@ ConstVec = <'['> <ws>? (ConstExpr (<comma> ConstExpr)* <ws>?)? <']'>;
 <SubExpr> = SingleExpr / OpExpr;
 Expr = SubExpr;
 
+<VarLike> = Var | VarVec;
+VarVec = <'['> <ws>? (VarLike (<comma> VarLike)* <ws>?)? (<ws> '&' <ws> VarLike) <ws>? <']'>;
+
 <OpExpr> = OpExpr00;
 <OpExpr00> = Ternary | OpExpr05;
 Ternary = OpExpr05 <'?'> OpExpr05 <':'> OpExpr05;
@@ -115,7 +118,7 @@ OverrideArg = Var <eq> Expr;
                              rules)))
 
           )]
-    (println grammar)
+    ;; (println grammar)
   (insta/parser grammar
                 :start :Content)))
   
