@@ -5,17 +5,17 @@
 If you are starting a new project: 
 
 ```bash
-lein new causeway-template project-name
+lein new causeway project-name
 cd project-name 
+lein run migrate
 lein ring server
 ```
 
 If you want to use `causeway` in an already existing project, add this to leiningen dependencies:
 
 ```clojure
-[causeway "0.1.1"]
+[causeway "0.4.0"]
 ```
-
 ## About
 Simple library for rapid web development with Clojure - designed with the following qualities in mind:
 * low interdependence - you should be able to take any one feature of this library and use it separately; or replace it with some other component. For instance, if you like hiccup, feel free to use it instead of the build in templating library.
@@ -30,7 +30,7 @@ Among others, it includes the following features:
 
 * Assets and resources structure
 * Caching and serving of compiled web assets (right now LESSCSS, CoffeeScript and minimizers are supported, thanks to wro4j, but create an issue if you need any other)
-* Templates inspired by [clabango](https://github.com/danlarkin/clabango) (but improved) which in turn is inspired by Django templating library
+* Templates inspired by PHP's [twig](http://twig.sensiolabs.org/), Django's [Templates](https://docs.djangoproject.com/en/dev/ref/templates/) and finally Clojure's [clabango](https://github.com/danlarkin/clabango)
 * L10n, i18n and AB-testing supported through:
 ** variant resources (templates, compiled and static resources)
 ** `(loc "some string")` macro
