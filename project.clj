@@ -1,4 +1,4 @@
-(defproject causeway "0.4.1"
+(defproject org.cosmi.causeway "0.4.1-RC1"
   :description "Simple library for rapid web development with Clojure"
   :url "https://github.com/cosmi/causeway"
   :license {:name "Eclipse Public License"
@@ -35,8 +35,8 @@
                    [org.webjars/emberjs]
                    [org.webjars/handlebars]
                    [org.webjars/jshint]
-                   [org.webjars/jslint ]
-                   [org.webjars/json2 ]
+                   ;[org.webjars/jslint ]
+                   ;[org.webjars/json2 ]
                    [org.webjars/less ]
                    ;[org.webjars/webjars-locator ]
                                         ;[ro.isdc.wro4j/rhino "1.7R5-20130223-1"]
