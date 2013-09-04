@@ -70,7 +70,8 @@
 
 
 (defmethod prop-parse ::string-vector [prop value]
-  (vec (strings/split-lines value)))
+  (if (= value "") []
+      (vec (strings/split-lines value))))
 
 
 (defmethod prop-edit-field ::string-vector [prop]
@@ -130,21 +131,29 @@
 
 
 (defn update-value! [v value]
-  (reset! @v value)
-  (update-by-id props-db PROPS (-> v meta :_id) {$set {:value (prop-db-serialize v)}} :upsert true))
+  )
 (defn reset-prop! [v]
+  (when-let [on-save (-> v meta :on-save)]
+    (on-save @@v (-> v meta :default)))
   (reset! @v (-> v meta :default))
   (remove-by-id  props-db PROPS (-> v meta :_id)))
 
 (defn write-prop! [v string]
-  (update-value! v (prop-parse v string)))
+  (let [value (prop-parse v string)]
+    (when-let [on-save (-> v meta :on-save)]
+      (on-save @@v value))
+    (reset! @v value)
+    (update-by-id props-db PROPS (-> v meta :_id)
+                  {$set {:value (prop-db-serialize v)}} :upsert true)))
 
 (defn get-prop [name]
   (when-let [v (find-var (symbol name))]
     (when (contains? @-prop-vars v) v)))
 
 
-(defmacro defprop [sym value & {:keys [type doc]}]
+(defmacro defprop [sym value & {:keys [type doc on-save]}]
+  
+  ;(when on-save (assert (ifn? on-save)))
   (let [type (or type (get-type value))
         valsym `value#]
     `(let [~valsym ~value
@@ -153,6 +162,7 @@
                             :_id (str (symbol (name (ns-name *ns*)) (name sym)))
                             :class type
                             :doc doc
+                            :on-save on-save
                             :default valsym)
                   (atom ~valsym))]
        (swap! -prop-vars conj v#)

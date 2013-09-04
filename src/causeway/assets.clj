@@ -4,7 +4,7 @@
         [compojure.core]
         [ring.middleware.file-info :only [wrap-file-info]]
         [ring.middleware.head :only [wrap-head]]
-        [ring.util.response :only [url-response]]
+        [ring.util.response]
         [causeway.assets.utils])
   (:import java.io.File)
   (:import ro.isdc.wro.model.resource.Resource
@@ -26,10 +26,11 @@
       (wrap-file-info)
       (wrap-head)))
 
+
 (defn resource-handler [provider]
   (-> (GET "/*" {{file-path :*} :route-params}
         (when-let [url (-> file-path provider)]
-          (url-response url)))
+          (ring.util.response/url-response url)))
       wrap-resource-handler))
 
 (defonce cache-root (create-temp-dir "causeway"))
