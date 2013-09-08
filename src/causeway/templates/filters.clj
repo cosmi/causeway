@@ -27,6 +27,16 @@
                     (let [tree (butlast tree)
                           sub (parse-filter-expr tree)]
                       #(-> (sub) escape-html))))
+
+(register-filter! :FormatFilter
+                  "FormatFilter = <pipe> <'format'> <ws>? Str;"
+                  (fn EscapeFilter [tree]
+                    (prn tree)
+                    (let [[_ [_ [_ s]]] (last tree)
+                          s (unescape-str s)
+                          tree (butlast tree)
+                          sub (parse-filter-expr tree)]
+                      #(->> (sub) (format s)))))
                   
 
 ;; (register-filter! :CallFilter

@@ -21,13 +21,14 @@ CljVar = #'[a-zA-Z-_][a-zA-Z-_0-9]*(\\.[a-zA-Z-_][a-zA-Z-_0-9]*)*/[a-zA-Z-_][a-z
 
 <Sym> = #'[a-zA-Z-_][a-zA-Z-_0-9]*';
 Int = #'[0-9]+';
+Double = #'[0-9]+\\.[0-9]*|\\.[0-9]+';
 Str = <'\"'> #'([^\"]|\\\\\")*' <'\"'>;
 Kword = <':'> #'[a-zA-Z-_0-9]+';
 Const = 'true' | 'false' | 'nil';
 
 Vec = <'['> <ws>? (SubExpr (<comma> SubExpr)* <ws>?)?  <']'>;
 ConstVec = <'['> <ws>? (ConstExpr (<comma> ConstExpr)* <ws>?)? <']'>;
-<ConstExpr> = Int | Str | Kword | ConstVec | CljVar | Const;
+<ConstExpr> = Int | Double | Str | Kword | ConstVec | CljVar | Const;
 <SingleExpr> = Var / ConstExpr / Vec;
 <SubExpr> = SingleExpr / OpExpr;
 Expr = SubExpr;
@@ -59,8 +60,8 @@ Minus = OpExpr50 (<ws> <'-'> <ws> OpExpr50) +;
 
 <OpExpr50> = Mult | OpExpr60;
 Mult = OpExpr60 (<ws>? <'*'> <ws>? OpExpr60) +;
-<OpExpr60> = Mult | OpExpr70;
-Div = OpExpr70 (<ws>? <'/'> <ws>? OpExpr70) +;
+<OpExpr60> = Div | OpExpr70;
+Div = OpExpr70 (<ws> <'/'> <ws> OpExpr70) +;
 
 <OpExpr70> = UnaryMinus | Not | Empty | Count | OpExpr80;
 UnaryMinus = <'-'> <ws>? OpExpr70;
@@ -155,6 +156,8 @@ OverrideArg = Var <eq> Expr;
          (constantly (unescape-str value))
          [:Int value]
          (constantly (Integer/parseInt value))
+         [:Double value]
+         (constantly (Double/parseDouble value))
          [:Kword value]
          (constantly (keyword value))
          [:Const value]
