@@ -122,6 +122,8 @@
 (defonce -prop-vars (atom #{}))
 
 
+(defn has-db-value? [v]
+ (boolean (find-map-by-id props-db PROPS (-> v meta :_id))))
 
 (defn get-db-value [v]
   (->
@@ -166,8 +168,8 @@
                             :default valsym)
                   (atom ~valsym))]
        (swap! -prop-vars conj v#)
-       (when-let [prop# (get-db-value v#)]
-         (reset! ~sym prop#))
+       (when (has-db-value? v#)
+         (reset! ~sym (get-db-value v#)))
        v#)))
 
 

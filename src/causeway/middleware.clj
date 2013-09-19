@@ -8,11 +8,14 @@
         [noir.cookies :only [wrap-noir-cookies]]
         [noir.session :only [mem wrap-noir-session wrap-noir-flash]]
         [ring.middleware.multipart-params :only [wrap-multipart-params]]
-        [ring.middleware.session.memory :only [memory-store]]
+        [monger.ring.session-store :only [monger-store]]
+        ;; [ring.middleware.session.memory :only [memory-store]]
         [ring.middleware.resource :only [wrap-resource]]
         [ring.middleware.file-info :only [wrap-file-info]]
         [causeway.validation :only [wrap-validation]]
         [noir.util.middleware :only [wrap-request-map]]
+        [causeway.scratch-db :only [db]]
+        [causeway.bootconfig :only [bootconfig]]
         [causeway.status :only [wrap-status-exception-handler]])
   (:require [clojure.string :as s]
             [ring.middleware.keyword-params]))
@@ -39,5 +42,8 @@
       (wrap-noir-cookies)
       (wrap-noir-flash)
       (wrap-noir-session
-       {:store (or store (memory-store mem))})
+       {:store (or store
+                   (monger-store db (bootconfig :session-coll "sessions"))
+                   ;(memory-store mem)
+                   )})
       wrap-status-exception-handler))

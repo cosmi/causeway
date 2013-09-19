@@ -35,15 +35,20 @@
       
       (->> (fun) flatten (apply str)))))
 
-(defn get-template [path provider]
-  (loop [template-path path res {}]
-    (if template-path
-      (let [{:keys [root blocks path extends vars] :as nres} (load-template template-path provider)]
-        (recur extends {:root root
-                        :blocks (merge blocks (res :blocks))
-                        :path (res :path)
-                        :extends extends
-                        :vars (vec (concat (res :vars) vars))}))
-      (wrap-template (res :root)
-                     (res :blocks)
-                     (res :vars)))))
+(defn get-template
+  ([path provider root-block]
+     (loop [template-path path res {}]
+       (if template-path
+         (let [{:keys [root blocks path extends vars] :as nres} (load-template template-path provider)]
+           (recur extends {:root root
+                           :blocks (merge blocks (res :blocks))
+                           :path (res :path)
+                           :extends extends
+                           :vars (vec (concat (res :vars) vars))}))
+         (wrap-template (if root-block
+                          (-> res :blocks (get root-block))
+                          (res :root))
+                        (res :blocks)
+                        (res :vars)))))
+  ([path provider]
+     (get-template path provider nil)))

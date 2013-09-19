@@ -31,7 +31,6 @@
 (register-filter! :FormatFilter
                   "FormatFilter = <pipe> <'format'> <ws>? Str;"
                   (fn EscapeFilter [tree]
-                    (prn tree)
                     (let [[_ [_ [_ s]]] (last tree)
                           s (unescape-str s)
                           tree (butlast tree)
