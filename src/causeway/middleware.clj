@@ -35,6 +35,7 @@
   :multipart - an optional map of multipart-params middleware options"
   [route & {:keys [store multipart]}]
   (-> route
+      wrap-status-exception-handler
       wrap-validation
       (wrap-request-map)
       (api)
@@ -45,5 +46,4 @@
        {:store (or store
                    (monger-store db (bootconfig :session-coll "sessions"))
                    ;(memory-store mem)
-                   )})
-      wrap-status-exception-handler))
+                   )})))

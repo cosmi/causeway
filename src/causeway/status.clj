@@ -14,7 +14,14 @@
 (defn wrap-status-exception-handler [handler]
   (fn [req]
     (try
-      (handler req)
+      (let [e (handler req)]
+        (if-not (instance? ExceptionInfo e)
+          e
+          (let [data (ex-data e)]
+            (if-not (data ::status-exception)
+              e
+              {:status (data :status)
+               :body (.getMessage e)}))))
       (catch ExceptionInfo e
         (let [data (ex-data e)]
           (if-not (data ::status-exception)

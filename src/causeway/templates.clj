@@ -50,13 +50,13 @@
     (letfn [(template
               ([path root-block]
                  (if (devmode?)
-                   (fn [input] ((create-template path) input))
+                   (fn [input] ((create-template path root-block) input))
                    (fn [input]
-                     (let [params [input *variant-stack* *templates-provider*]]
+                     (let [params [input root-block *variant-stack* *templates-provider*]]
                        (if (cache/has? cache params)
                          (cache/hit cache params)
-                         (cache/miss cache params (create-template path)))
-                       ((cache/lookup cache params) input)))))
+                         (cache/miss cache params (create-template path root-block)))
+                       ((cache/lookup cache root-block) input)))))
               ([path]
                  (template path nil)))]
       template)))
