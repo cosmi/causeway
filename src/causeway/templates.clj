@@ -2,7 +2,10 @@
   (:require [clojure.string :as strings]
             [clojure.java.io :as io]
             [clojure.core.cache :as cache]
-            [causeway.templates tags filters])
+            [causeway.templates tags filters]
+            [taoensso.timbre :as timbre
+                      :refer (trace debug info warn
+                                    error fatal spy with-log-level)])
   (:use causeway.templates.engine
         causeway.templates.variables
         causeway.variants
@@ -46,17 +49,25 @@
 
 
 (def template
-  (let [cache (cache/soft-cache-factory {})]
+  (let [cache (cache/soft-cache-factory {})
+        cacher (atom nil)]
     (letfn [(template
               ([path root-block]
                  (if (devmode?)
                    (fn [input] ((create-template path root-block) input))
                    (fn [input]
-                     (let [params [input root-block *variant-stack* *templates-provider*]]
+                     (let [params [path root-block *variant-stack* *templates-provider*]]
                        (if (cache/has? cache params)
                          (cache/hit cache params)
-                         (cache/miss cache params (create-template path root-block)))
-                       ((cache/lookup cache root-block) input)))))
+                         (swap! cacher
+                                   (fn [v]
+                                     (when-not (cache/has? cache params)
+                                       (let [template (create-template path root-block)]
+                                         
+                                       (info "Parsing template" params template cache)
+                                         (cache/miss cache params template)))
+                                     nil)))
+                       ((cache/lookup cache params) input)))))
               ([path]
                  (template path nil)))]
       template)))
