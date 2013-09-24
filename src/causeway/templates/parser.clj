@@ -333,8 +333,6 @@ OverrideArg = Var <eq> Expr;
            (fn [] (mapv #(if (fn? %) (%) %) args)))))
 
 
-
-
 (defn parse-override-list [tree]
   (let [olist
         (match tree
@@ -346,7 +344,10 @@ OverrideArg = Var <eq> Expr;
                             expr]
                            [(mapv keyword kwords) (parse-expr expr)])))]
 
-    (fn [] (reduce (fn [i [k v]]
-                     (assoc-in i k (v)))
-                   *input* olist))
-    ))
+    (fn ([] (reduce (fn [i [k v]]
+                      (assoc-in i k (v)))
+                    *input* olist))
+      ([input]
+         (reduce (fn [i [k v]]
+                   (assoc-in i k (v)))
+                 input olist)))))

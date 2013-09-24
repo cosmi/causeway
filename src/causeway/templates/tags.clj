@@ -139,9 +139,8 @@ CallBlockTag = <BeginTag> <'callblock'> <ws> Sym (<ws> ('only' <ws>)? <'with'> O
                          olist]
                         (let [olist (parse-override-list olist)]
                           #(if-let [block (get-block s)]
-                             (binding [*input* {}]
-                               (binding [*input* (olist)]
-                                 (block)))
+                               (binding [*input* (olist {})]
+                                 (block))
                              (throw (Exception. (str "No such block: " s))))))))
 
 

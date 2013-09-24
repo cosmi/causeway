@@ -61,6 +61,7 @@
                          (cache/hit cache params)
                          (swap! cacher
                                    (fn [v]
+                                     (info "hash:" (hash params) params)
                                      (when-not (cache/has? cache params)
                                        (let [template (create-template path root-block)]
                                          
