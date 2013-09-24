@@ -250,6 +250,8 @@ CommentTagEnd =  <BeginTag> <'endcomment'> <AnyText> <EndTag>;
 
 (defn convert-varvec [varvec]
   (match varvec
+         nil
+         (fn [m v] m)
          [:Var & keys]
          (let [keys (map keyword keys)]
            #(assoc-in %1 keys %2))
@@ -271,40 +273,71 @@ CommentTagEnd =  <BeginTag> <'endcomment'> <AnyText> <EndTag>;
 
 (register-tag! :ForTag
                "
-ForTag = ForTagBegin Content (<ForTagEmpty> Content)? ForTagEnd;
-ForTagBegin = <BeginTag> <'for'> <ws> VarLike <ws> <'in'> <ws> Expr <EndTag>;
+ForTag = ForTagBegin Content (<ForTagEmpty> Content)? <ForTagEnd>;
+ForTagBegin = <BeginTag> <'for'> <ws> (ForTagVar (<ws> ForTagIndex)? | ForTagIndex)
+               <ws> <'in'> <ws> ForTagExpr <EndTag>;
+ForTagExpr = Expr;
+ForTagVar = VarLike;
+ForTagIndex = <'index'> <ws> VarLike;
 ForTagEnd = <BeginTag> <'endfor'> <AnyText> <EndTag>;
 ForTagEmpty = <BeginTag> <'empty'> <AnyText> <EndTag>;
 "
                (fn [tree]
-                 (match tree
-                        [:ForTag
-                         [:ForTagBegin varvec expr]
-                         c1
-                         [:ForTagEnd]]
-                        (let [expr (parse-expr expr)
-                              c1 (parse-ast c1)
-                              varvec (convert-varvec varvec)]
-                          (fn [] (doall
-                                  (for [v (expr)]
-                                    (binding [*input* (varvec *input* v)]
-                                      (c1))))))
-                        [:ForTag
-                         [:ForTagBegin varvec expr]
-                         c1
-                         c2
-                         [:ForTagEnd]]
-                        (let [expr (parse-expr expr)
-                              c1 (parse-ast c1)
-                              c2 (parse-ast c2)
-                              varvec (convert-varvec varvec)]
-                          (fn [] 
-                            (let [e (expr)]
-                              (if (empty? e)
-                                (c2)
-                                (doall (for [v e]
-                                         (binding [*input* (varvec *input* v)]
-                                           (c1)))))))))))
+                 (let [[_ header content onempty] tree
+                       {varvec :ForTagVar idx :ForTagIndex expr :ForTagExpr
+                         :as res}
+                       (into {} (for [e (rest header)]
+                                  [(first e) (second e)]
+                                  ))
+                       varvec (convert-varvec varvec)
+                       idx (convert-varvec idx)
+                       expr (parse-expr expr)
+                       content (parse-ast content)
+                       onempty (if onempty (parse-ast onempty) (constantly ""))]
+                   (fn []
+                     (let [v (expr)]
+                       (if (empty? v)
+                         (onempty)
+                         (let [v (if (map? v) v (map-indexed list v))]
+                           (doall
+                            (for [[i v] v]
+                              (binding [*input* (-> *input*
+                                                    (varvec v)
+                                                    (idx i)
+                                                    )]
+                                (content)))))))))))
+                 ;;                      (c1)))))
+
+                 ;;   )))
+                 
+                 ;; (match tree
+                 ;;        [:ForTag
+                 ;;         [:ForTagBegin varvec expr]
+                 ;;         c1
+                 ;;         [:ForTagEnd]]
+                 ;;        (let [expr (parse-expr expr)
+                 ;;              c1 (parse-ast c1)
+                 ;;              varvec (convert-varvec varvec)]
+                 ;;          (fn [] (doall
+                 ;;                  (for [v (expr)]
+                 ;;                    (binding [*input* (varvec *input* v)]
+                 ;;                      (c1))))))
+                 ;;        [:ForTag
+                 ;;         [:ForTagBegin varvec expr]
+                 ;;         c1
+                 ;;         c2
+                 ;;         [:ForTagEnd]]
+                 ;;        (let [expr (parse-expr expr)
+                 ;;              c1 (parse-ast c1)
+                 ;;              c2 (parse-ast c2)
+                 ;;              varvec (convert-varvec varvec)]
+                 ;;          (fn [] 
+                 ;;            (let [e (expr)]
+                 ;;              (if (empty? e)
+                 ;;                (c2)
+                 ;;                (doall (for [v e]
+                 ;;                         (binding [*input* (varvec *input* v)]
+                 ;;                           (c1)))))))))))
 
 
 
@@ -348,9 +381,9 @@ IdTag = <BeginTag> <'id'> (<ws> Sym)? <EndTag>;
 
 (register-tag! :SwitchTag
  "
-SwitchTag = SwitchTagBegin SwitchTagCase (<BeginTag> SwitchTagCase)* (SwitchTagElse)? <SwitchTagEnd>;
+SwitchTag = SwitchTagBegin <ws> SwitchTagCase (<BeginTag> SwitchTagCase)* (SwitchTagElse)? <SwitchTagEnd>;
 <SwitchTagBegin> = <BeginTag> <'switch'> <ws> Expr;
-SwitchTagCase = <ws> <'case'> <ws> ConstExpr <EndTag> Content;
+SwitchTagCase = <'case'> <ws> ConstExpr <EndTag> Content;
 SwitchTagElse = <BeginTag> <'else'> <AnyText> <EndTag> Content;
 SwitchTagEnd = <BeginTag> <'endswitch'> <AnyText> <EndTag>;
 "
