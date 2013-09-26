@@ -35,9 +35,7 @@
 
 (def file-list
   (->
-  "bootconfig/dev.clj
-bootconfig/prod.clj
-bootconfig.clj
+  "resources/bootconfig.clj
 project.clj
 src/coldheart/ctrl/auth.clj
 src/coldheart/devtools.clj

@@ -4,14 +4,14 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.5.1"]
-                 [causeway "0.4.0"]
+		 [causeway "0.4.2"]
                  [ring "1.2.0"]
                  [ring-http-basic-auth "0.0.2"]
                  [lobos "1.0.0-beta1"]
                  [korma "0.3.0-RC5"]
                  [org.clojure/java.jdbc "0.3.0-alpha4"]
-                 ;; To enable PostgreSQL:
-                 ;; [postgresql/postgresql "9.1-901.jdbc4"]
+                 [postgresql/postgresql "9.1-901.jdbc4"]
+				 ;; To enable MySQL:
                  [mysql/mysql-connector-java "5.1.26"]
                  [log4j "1.2.15" :exclusions [javax.mail/mail
                                               javax.jms/jms
@@ -27,9 +27,10 @@
   :main causeway.devtools
 
   :profiles {
-             :production {:jvm-opts ["-Dbootconfig=bootconfig/prod.clj"]
+             :production {:jvm-opts ["-Xmx3g" "-server"]
                           :ring
-                          {:open-browser? false, :stacktraces? false, :auto-reload? false}}
+                          {:open-browser? false, :stacktraces? false,
+                           :auto-reload? false}}
              :dev {:ring {:nrepl {:start? true :port 6060}
-                          :open-browser? false}}
+                          :open-browser? false, :auto-reload? false}}
              })

@@ -1,7 +1,10 @@
-(ns causeway.bootconfig)
+(ns causeway.bootconfig
+  (:require [clojure.java.io :as io])
+  (:import [java.io File]))
 
 (def default-bootconfig
-  {:driver :mongo
+  {:scratch-mode :mongodb
+   :sessions-mode :mongodb
    :host "localhost"
    :port 27017
    :properties-db nil
@@ -14,7 +17,11 @@
                        
 
 (defn- load-config [filepath]
-  (merge default-bootconfig (read-string (slurp filepath))))
+  (let [file (File. filepath)
+        file (if (.exists file)
+               file
+               (io/resource filepath))]
+    (merge default-bootconfig (read-string (slurp file)))))
 
 
 (def ^:private config-filename (or (System/getProperty "bootconfig") "bootconfig.clj"))
@@ -27,3 +34,4 @@
 
 (defn switch-devmode [state]
   (alter-var-root #'bootconfig assoc :mode (when state :dev)))
+

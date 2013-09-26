@@ -6,7 +6,7 @@
             [causeway.scratch-db :as scratch])
   (:use monger.operators
         compojure.core
-        [monger.multi.collection :only [find-map-by-id update-by-id remove-by-id] :as mongo]
+        [monger.multi.collection :only [find-map-by-id update-by-id remove-by-id]]
         [causeway.bootconfig]
         ))
 
@@ -121,32 +121,47 @@
 
 (defonce -prop-vars (atom #{}))
 
+(case (bootconfig :scratch-mode)
+  :mongodb
+  (do
+    (defn has-db-value? [v]
+      (boolean (find-map-by-id props-db PROPS (-> v meta :_id))))
 
-(defn has-db-value? [v]
- (boolean (find-map-by-id props-db PROPS (-> v meta :_id))))
-
-(defn get-db-value [v]
-  (->
-   (find-map-by-id props-db PROPS (-> v meta :_id))
-   (get :value)
-   (->> (prop-db-deserialize v))))
+    (defn get-db-value [v]
+      (->
+       (find-map-by-id props-db PROPS (-> v meta :_id))
+       (get :value)
+       (->> (prop-db-deserialize v))))
 
 
-(defn update-value! [v value]
-  )
-(defn reset-prop! [v]
-  (when-let [on-save (-> v meta :on-save)]
-    (on-save @@v (-> v meta :default)))
-  (reset! @v (-> v meta :default))
-  (remove-by-id  props-db PROPS (-> v meta :_id)))
+    (defn reset-prop! [v]
+      (when-let [on-save (-> v meta :on-save)]
+        (on-save @@v (-> v meta :default)))
+      (reset! @v (-> v meta :default))
+      (remove-by-id  props-db PROPS (-> v meta :_id)))
 
-(defn write-prop! [v string]
-  (let [value (prop-parse v string)]
-    (when-let [on-save (-> v meta :on-save)]
-      (on-save @@v value))
-    (reset! @v value)
-    (update-by-id props-db PROPS (-> v meta :_id)
-                  {$set {:value (prop-db-serialize v)}} :upsert true)))
+    (defn write-prop! [v string]
+      (let [value (prop-parse v string)]
+        (when-let [on-save (-> v meta :on-save)]
+          (on-save @@v value))
+        (reset! @v value)
+        (update-by-id props-db PROPS (-> v meta :_id)
+                      {$set {:value (prop-db-serialize v)}} :upsert true))))
+  false
+  (do
+     (defn has-db-value? [v]
+      false)
+
+    (defn get-db-value [v]
+      nil)
+
+
+    (defn reset-prop! [v]
+      nil)
+
+    (defn write-prop! [v string]
+      (throw (UnsupportedOperationException. "Properties cannot be changed in current mode")))
+    ))
 
 (defn get-prop [name]
   (when-let [v (find-var (symbol name))]

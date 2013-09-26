@@ -5,8 +5,10 @@
 
 
 
-(def ^:private db-connection 
-    (mg/connect { :host (bootconfig :host), :port (bootconfig :port) }))
+(def ^:private db-connection
+  (when (-> bootconfig :scratch-mode (= :mongodb))
+    (mg/connect { :host (bootconfig :host), :port (bootconfig :port) })))
 
 (def db
-  (mg/get-db db-connection (bootconfig :properties-db)))
+  (when (-> bootconfig :scratch-mode (= :mongodb))
+    (mg/get-db db-connection (bootconfig :properties-db))))

@@ -9,7 +9,7 @@
         [noir.session :only [mem wrap-noir-session wrap-noir-flash]]
         [ring.middleware.multipart-params :only [wrap-multipart-params]]
         [monger.ring.session-store :only [monger-store]]
-        ;; [ring.middleware.session.memory :only [memory-store]]
+        [ring.middleware.session.memory :only [memory-store]]
         [ring.middleware.resource :only [wrap-resource]]
         [ring.middleware.file-info :only [wrap-file-info]]
         [causeway.validation :only [wrap-validation]]
@@ -42,8 +42,12 @@
       (#'noir.util.middleware/with-opts wrap-multipart-params multipart)
       (wrap-noir-cookies)
       (wrap-noir-flash)
-      (wrap-noir-session
-       {:store (or store
-                   (monger-store db (bootconfig :session-coll "sessions"))
-                   ;(memory-store mem)
-                   )})))
+      (cond-> (-> bootconfig :sessions-mode false? not)
+              (wrap-noir-session
+               {:store (or store
+                           (case (bootconfig :sessions-mode)
+                             :mongodb
+                             (monger-store db (bootconfig :session-coll "sessions"))
+                             :memory
+                             (memory-store mem))
+                           )}))))

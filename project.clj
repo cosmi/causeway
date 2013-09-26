@@ -1,4 +1,4 @@
-(defproject org.cosmi.causeway "0.4.2-RC4"
+(defproject causeway "0.4.2"
   :description "Simple library for rapid web development with Clojure"
   :url "https://github.com/cosmi/causeway"
   :license {:name "Eclipse Public License"

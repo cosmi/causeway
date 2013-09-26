@@ -54,22 +54,13 @@
         wrap-resource-lookup-caching))
       resource-handler)))
 
-(def template-preview
-  (preview/preview-templates-handler "templates"))
 
-
-(defn wrap-access-fn [handler test-fn]
-  ;; TODO: use one in causeway after deploying new version
-  (fn [req] (if (test-fn) (handler req) nil)))
 
 (def main-handler
   (-> 
    (routes
      #'app-routes
      #'admin-routes
-     (routes-when (devmode?)
-       (context "/template" []
-           template-preview))
      resource-routes
      (not-found "Not Found"))
    ;; TODO: Add something like that:
@@ -82,11 +73,6 @@
   (set-default-url-templates-provider!
    (combine-providers
     (variant-provider "variants" "templates")
-    (resource-provider "templates")))
-
-  
-  (when (-> bootconfig :db-spec :subprotocol (= "mysql"))
-    (korma.config/set-delimiters "`"))
-  )
+    (resource-provider "templates"))))
 
 (defn destroy [])
