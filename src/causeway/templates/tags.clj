@@ -242,7 +242,7 @@ CommentTagEnd =  <BeginTag> <'endcomment'> <AnyText> <EndTag>;
 
 (register-tag! :ShortCommentTag
                "
-<ShortCommentTag> = <BeginComment> <#'([^#]|#[^}])*'> <EndComment>;
+<ShortCommentTag> = <BeginComment> <#'^([^#]|#[^}])*'> <EndComment>;
 "
                (fn [tree]
                  (constantly nil)))
@@ -374,7 +374,7 @@ IdTag = <BeginTag> <'id'> (<ws> Sym)? <EndTag>;
 "
                (fn [[_ sym]]
                  (let [hash (hash *current-template*)
-                       nom (str sym "." hash)]
+                       nom (str sym hash)]
                    (constantly nom)
                  )))
 
@@ -383,7 +383,7 @@ IdTag = <BeginTag> <'id'> (<ws> Sym)? <EndTag>;
  "
 SwitchTag = SwitchTagBegin <ws> SwitchTagCase (<BeginTag> SwitchTagCase)* (SwitchTagElse)? <SwitchTagEnd>;
 <SwitchTagBegin> = <BeginTag> <'switch'> <ws> Expr;
-SwitchTagCase = <'case'> <ws> ConstExpr <EndTag> Content;
+SwitchTagCase = <'case'> <ws> ConstExpr (<comma> ConstExpr)* <EndTag> Content;
 SwitchTagElse = <BeginTag> <'else'> <AnyText> <EndTag> Content;
 SwitchTagEnd = <BeginTag> <'endswitch'> <AnyText> <EndTag>;
 "
@@ -394,10 +394,13 @@ SwitchTagEnd = <BeginTag> <'endswitch'> <AnyText> <EndTag>;
           (let [expr (parse-expr expr)
                 cases (reduce (fn [m cs]
                                 (match cs
-                                       [:SwitchTagCase expr1 content]
-                                       (let [expr ((parse-subexpr expr1))
+                                       [:SwitchTagCase & args]
+                                       (let [exprs (drop-last args)
+                                             content (last args)
+                                             exprs (map #((parse-subexpr %)) exprs)
                                              content (parse-ast content)]
-                                         (assoc m expr content))
+                                         (reduce #(assoc %1 %2 content)
+                                                 m exprs))
                                        
                                        [:SwitchTagElse content]
                                        (let [content (parse-ast content)]

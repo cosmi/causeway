@@ -12,18 +12,18 @@ comma = <ws>? ',' <ws>?;
 eq = <ws>? '=' <ws>?;
 count = <ws>? 'count' <ws>?;
 
-AnyText = #'([^%]|%[^\\}])*';
+AnyText = #'^([^%]|%[^\\}])*';
 
 ReservedWords = 'count' | 'not' | 'empty' | 'or' | 'and' | Const;
 
 Var = !ReservedWords Sym (<'.'> Sym)*;
-CljVar = #'[a-zA-Z-_][a-zA-Z-_0-9]*(\\.[a-zA-Z-_][a-zA-Z-_0-9]*)*/[a-zA-Z-_][a-zA-Z-_0-9]*'
+CljVar = #'^([a-zA-Z-_][a-zA-Z-_0-9]*(\\.[a-zA-Z-_][a-zA-Z-_0-9]*)*)?/[a-zA-Z-_?!*][a-zA-Z-_0-9?!*]*'
 
 <Sym> = #'[a-zA-Z-_][a-zA-Z-_0-9]*';
-Int = #'[0-9]+';
-Double = #'[0-9]+\\.[0-9]*|\\.[0-9]+';
-Str = <'\"'> #'([^\"]|\\\\\")*' <'\"'>;
-Kword = <':'> #'[a-zA-Z-_0-9]+';
+Int = #'^[0-9]+';
+Double = #'^([0-9]+\\.[0-9]*|\\.[0-9]+)';
+Str = <'\"'> #'^([^\"]|\\\\\")*' <'\"'>;
+Kword = <':'> #'^[a-zA-Z-_0-9]+';
 Const = 'true' | 'false' | 'nil';
 
 Vec = <'['> <ws>? (SubExpr (<comma> SubExpr)* <ws>?)?  <']'>;
@@ -65,18 +65,19 @@ Div = OpExpr70 (<ws> <'/'> <ws> OpExpr70) +;
 
 <OpExpr70> = UnaryMinus | Not | Empty | Count | OpExpr80;
 UnaryMinus = <'-'> <ws>? OpExpr70;
-Not = <'not' > <ws>? OpExpr70;
-Empty = <'empty' > <ws>? OpExpr70;
+Not = <'not'> <ws>? OpExpr70;
+Empty = <'empty'> <ws>? OpExpr70;
 Count = <count> <ws>? OpExpr70;
 
-<OpExpr80> = Index | Call | OpExpr100;
+<OpExpr80> = Index | Call | DotIndex | OpExpr100;
 Index = OpExpr80 <ws>? (ConstVec / Vec);
-Call = OpExpr80 <ws>? <'('> (ArgsList? | <ws>?) <')'>;
+Call = OpExpr80 <ws>? <'('> (ArgsList? | <ws>?) <')'>
+DotIndex = OpExpr80  (<ws>? <'.'> <ws>? Sym )+;
 
 <OpExpr100> = <'('> <ws>? SubExpr <ws>? <')'> | SingleExpr;
 
 VarInput = <BeginVar> Expr (Filter)*<EndVar>;
-RetainVarInput = <'{{{'> #'([^}]|}[^}]|}}[^}])' <'}}}'>;
+RetainVarInput = <'{{{'> #'^([^}]|}[^}]|}}[^}])' <'}}}'>;
 BeginTag = '{%' <ws>?;
 EndTag = <ws>? '%}';
 BeginVar= '{{' <ws>?;
@@ -84,7 +85,7 @@ EndVar = <ws>? '}}';
 BeginComment = '{#';
 EndComment = '#}';
 
-Text = #'([^{]|\\{[^{%#])*';
+Text = (#'[^{]+' | #'\\{[^{%#]')*;
 
 Content = Text ( (Tag | VarInput | RetainVarInput) Text)*;
 
@@ -226,6 +227,11 @@ OverrideArg = Var <eq> Expr;
           (let [expr1 (parse-subexpr expr1)
                 expr2 (parse-subexpr expr2)]
             #(get-in (expr1) (expr2)))
+
+          [:DotIndex expr & rst]
+          (let [expr (parse-subexpr expr)
+                kwords (mapv keyword rst)]
+            #(get-in (expr) kwords))
           [:Call & rst]
           (match rst
                  [expr1]
@@ -243,7 +249,10 @@ OverrideArg = Var <eq> Expr;
             #(if (expr1) (expr2) (expr3)))
 
           [:CljVar s]
-          (let [fun (-> s symbol find-var deref)]
+          (let [fun (-> s
+                        (cond-> (.startsWith s "/")
+                                (->> (str "clojure.core")))
+                        symbol find-var deref)]
             #(do fun))
           :else nil)
    (parse-op element)
@@ -262,8 +271,8 @@ OverrideArg = Var <eq> Expr;
 
 (defn parse-text [tree]
   (match tree
-         [:Text text]
-         (constantly text)))
+         [:Text & texts]
+         (constantly (apply str texts))))
 
 (defn parse-filter-expr [tree]
   (let [tree (vec tree)]
