@@ -3,7 +3,7 @@
   :url "https://github.com/cosmi/causeway"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.9.0"]
+  :dependencies [[org.clojure/clojure "1.8.0"]
                  [sass "3.2.6"]
                  [digest "1.3.0"]
                  [ring "1.2.0"]
